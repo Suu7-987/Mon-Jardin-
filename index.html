@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <meta name="theme-color" content="#0f1f17" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Mon Jardin" />
+  <meta name="description" content="Journal privé de suivi de plantes, hors ligne et sans abonnement." />
+  <link rel="manifest" href="./manifest.json" />
+  <link rel="icon" href="./icon.svg" type="image/svg+xml" />
+  <link rel="apple-touch-icon" href="./icon-192.png" />
+  <link rel="stylesheet" href="./app.css" />
+  <title>Mon Jardin — Journal de plantes</title>
+</head>
+<body>
+  <div class="app-shell">
+    <header class="topbar">
+      <div>
+        <div class="eyebrow">JOURNAL PRIVÉ</div>
+        <h1 id="pageTitle">Mon Jardin</h1>
+      </div>
+      <button class="icon-btn" id="quickAddBtn" aria-label="Ajouter">＋</button>
+    </header>
+
+    <main id="app"></main>
+
+    <nav class="bottom-nav" aria-label="Navigation principale">
+      <button data-route="dashboard" class="nav-item active"><span>⌂</span><small>Accueil</small></button>
+      <button data-route="plants" class="nav-item"><span>🌱</span><small>Plantes</small></button>
+      <button data-route="journal" class="nav-item"><span>🗒️</span><small>Journal</small></button>
+      <button data-route="stats" class="nav-item"><span>📈</span><small>Stats</small></button>
+      <button data-route="settings" class="nav-item"><span>⚙️</span><small>Réglages</small></button>
+    </nav>
+  </div>
+
+  <dialog id="modal" class="modal">
+    <form method="dialog" class="modal-card" id="modalCard">
+      <div class="modal-head">
+        <h2 id="modalTitle">Ajouter</h2>
+        <button value="cancel" class="icon-btn close-btn" aria-label="Fermer">×</button>
+      </div>
+      <div id="modalBody"></div>
+    </form>
+  </dialog>
+
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <script src="./app.js"></script>
+</body>
+</html>
