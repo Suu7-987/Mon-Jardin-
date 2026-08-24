@@ -1,5 +1,5 @@
-const DB_NAME="mon-jardin-db", DB_VERSION=1;
-let db, route="dashboard";
+const DB_NAME="mon-jardin-db", DB_VERSION=4;
+let db, route="dashboard", gardenMode="plants";
 
 const ENTRY_TYPES={
   watering:["💧","Arrosage"],
@@ -30,6 +30,10 @@ function openDB(){
       if(!d.objectStoreNames.contains("entries")){
         const s=d.createObjectStore("entries",{keyPath:"id"});
         s.createIndex("plantId","plantId"); s.createIndex("date","date"); s.createIndex("type","type");
+      }
+      if(!d.objectStoreNames.contains("environments")){
+        const s=d.createObjectStore("environments",{keyPath:"id"});
+        s.createIndex("name","name");
       }
     };
     req.onsuccess=()=>resolve(req.result); req.onerror=()=>reject(req.error);
@@ -70,60 +74,178 @@ function plantPhotoHTML(p){
   return `<div class="plant-photo">${p.photo?`<img src="${p.photo}" alt="">`:"🌱"}</div>`;
 }
 
+
+function monthLabel(date){
+  return new Intl.DateTimeFormat("fr-FR",{month:"long", year:"numeric"}).format(date);
+}
+function isoDay(date){
+  const d=new Date(date); d.setHours(0,0,0,0); return d.toISOString().slice(0,10);
+}
+function buildCalendarData(entries, focusDate=new Date(), selectedDate=null){
+  const focus=new Date(focusDate.getFullYear(),focusDate.getMonth(),1);
+  const start=new Date(focus);
+  const offset=(focus.getDay()+6)%7; // lundi début
+  start.setDate(start.getDate()-offset);
+  const days=[];
+  const counts=new Map();
+  entries.forEach(e=>{
+    const k=isoDay(e.date);
+    counts.set(k,(counts.get(k)||0)+1);
+  });
+  for(let i=0;i<42;i++){
+    const d=new Date(start); d.setDate(start.getDate()+i);
+    const key=isoDay(d);
+    days.push({
+      iso:key,
+      day:d.getDate(),
+      other:d.getMonth()!==focus.getMonth(),
+      today:key===isoDay(new Date()),
+      selected:key===selectedDate,
+      count:counts.get(key)||0
+    });
+  }
+  return {focus,days};
+}
+function renderCalendarHTML(entries, focusDate=new Date(), selectedDate=null){
+  const {focus,days}=buildCalendarData(entries, focusDate, selectedDate);
+  return `
+    <div class="timeline-card">
+      <div class="calendar-head">
+        <button type="button" class="calendar-nav" id="calPrev">‹</button>
+        <h3>${esc(monthLabel(focus))}</h3>
+        <button type="button" class="calendar-nav" id="calNext">›</button>
+      </div>
+      <div class="calendar-weekdays">
+        <div>Lun</div><div>Mar</div><div>Mer</div><div>Jeu</div><div>Ven</div><div>Sam</div><div>Dim</div>
+      </div>
+      <div class="calendar-grid">
+        ${days.map(d=>`
+          <button type="button" class="calendar-day ${d.other?'other':''} ${d.today?'today':''} ${d.selected?'selected':''}" data-cal-day="${d.iso}">
+            <div>${d.day}</div>
+            ${d.count?`<span class="calendar-dot"></span>`:`<span style="width:6px;height:6px"></span>`}
+          </button>
+        `).join("")}
+      </div>
+    </div>
+  `;
+}
+async function savePlantNotes(plantId, notes){
+  const p=await getOne("plants",plantId);
+  if(!p) return;
+  p.notes=notes;
+  p.updatedAt=new Date().toISOString();
+  await put("plants",p);
+}
+
 async function render(){
   const app=qs("#app");
-  const titles={dashboard:"Mon Jardin",plants:"Mes plantes",journal:"Journal",stats:"Statistiques",settings:"Réglages"};
-  qs("#pageTitle").textContent=titles[route]||"Mon Jardin";
+  const titles={dashboard:"Accueil",garden:"Jardin",plants:"Mes plantes",environments:"Environnements",journal:"Journal",stats:"Statistiques",settings:"Réglages"};
+  qs("#pageTitle").textContent=titles[route]||"Grow in PF";
   if(route==="dashboard") return renderDashboard(app);
+  if(route==="garden") return renderGarden(app);
   if(route==="plants") return renderPlants(app);
+  if(route==="environments") return renderEnvironments(app);
   if(route==="journal") return renderJournal(app);
   if(route==="stats") return renderStats(app);
   if(route==="settings") return renderSettings(app);
 }
 
+
 async function renderDashboard(app){
-  const [plants,entries]=await Promise.all([all("plants"),all("entries")]);
+  const [plants,entries,environments]=await Promise.all([all("plants"),all("entries"),all("environments")]);
   entries.sort((a,b)=>new Date(b.date)-new Date(a.date));
-  const week=Date.now()-7*86400000, recent=entries.filter(e=>new Date(e.date).getTime()>=week);
-  const temps=recent.map(e=>+e.temp).filter(Number.isFinite), hrs=recent.map(e=>+e.humidity).filter(Number.isFinite);
+  const week=Date.now()-7*86400000;
+  const recent=entries.filter(e=>new Date(e.date).getTime()>=week);
+  const todayKey=isoDay(new Date());
+  const todayEntries=entries.filter(e=>isoDay(e.date)===todayKey);
   const water=recent.reduce((s,e)=>s+(+e.water||0),0);
-  const attention=plants.filter(p=>severityStatus(entries,p.id)!=="ok").length;
+  const attention=plants.filter(p=>severityStatus(entries,p.id)!=="ok");
+  const recentPhotos=entries.filter(e=>e.photo).slice(0,3);
+  const envCards=[...environments].sort((a,b)=>(a.order??99)-(b.order??99)).slice(0,3);
 
   app.innerHTML=`
-    <section class="hero">
-      <h2>${plants.length?`Tu suis ${plants.length} plante${plants.length>1?"s":""} 🌿`:"Ton journal est prêt 🌿"}</h2>
-      <p>${plants.length?"Ajoute tes observations au fil des jours : les tendances apparaîtront automatiquement.":"Commence par créer ta première plante. Tes données restent dans ton navigateur."}</p>
+    <section class="hero home-hero">
+      <h2>Grow in PF</h2>
+      <p class="home-sub">Ton journal de culture perso en mode sombre, pensé pour ton indoor, ta propagation et ton potager en Polynésie.</p>
       <div class="actions" style="margin-top:16px">
         <button class="primary" id="dashAddPlant">＋ Ajouter une plante</button>
-        <button class="secondary" id="dashAddEntry" ${plants.length?"":"disabled"}>＋ Entrée rapide</button>
+        <button class="secondary" id="dashAddEntry" ${plants.length?"":"disabled"}>🗒️ Ajouter une entrée</button>
       </div>
     </section>
+
+    <section class="quick-grid">
+      <button class="quick-card" id="quickPhoto"><span class="icon">📷</span>Photo rapide</button>
+      <button class="quick-card" id="quickJournal"><span class="icon">🗒️</span>Journal</button>
+      <button class="quick-card" id="quickGarden"><span class="icon">🌿</span>Jardin</button>
+    </section>
+
     <section class="grid">
-      <div class="metric"><div class="label">PLANTES</div><div class="value">${plants.length}</div><div class="sub">actives dans le journal</div></div>
-      <div class="metric"><div class="label">À SURVEILLER</div><div class="value">${attention}</div><div class="sub">signalement ≥ 2/5 sur 7 j</div></div>
-      <div class="metric"><div class="label">TEMP. MOY. 7 J</div><div class="value">${temps.length?(temps.reduce((a,b)=>a+b,0)/temps.length).toFixed(1)+"°":"—"}</div><div class="sub">${temps.length} mesure${temps.length>1?"s":""}</div></div>
+      <div class="metric"><div class="label">PLANTES</div><div class="value">${plants.length}</div><div class="sub">suivies actuellement</div></div>
+      <div class="metric"><div class="label">ENVIRONNEMENTS</div><div class="value">${environments.length}</div><div class="sub">zones de culture</div></div>
+      <div class="metric"><div class="label">ALERTES</div><div class="value">${attention.length}</div><div class="sub">niveau ≥ 2/5</div></div>
       <div class="metric"><div class="label">EAU 7 J</div><div class="value">${water?water.toFixed(1)+" L":"—"}</div><div class="sub">total enregistré</div></div>
     </section>
+
     <section>
-      <div class="section-title"><h2>Plantes</h2><button id="seePlants">Tout voir</button></div>
-      <div class="card-list" style="margin-top:10px">${plants.length?plants.slice(0,4).map(p=>plantCard(p,entries)).join(""):`<div class="empty">Aucune plante pour le moment.</div>`}</div>
+      <div class="section-title"><h2>Mes environnements</h2><button id="seeGardenEnv">Tout voir</button></div>
+      <div class="env-mini-grid" style="margin-top:10px">
+        ${envCards.length ? envCards.map(env=>{
+          const envPlants=plants.filter(p=>p.environmentId===env.id);
+          const envEntries=entries.filter(e=>envPlants.some(p=>p.id===e.plantId)).sort((a,b)=>new Date(b.date)-new Date(a.date));
+          const temp=envEntries.find(e=>e.temp)?.temp;
+          const hum=envEntries.find(e=>e.humidity)?.humidity;
+          return `<button class="env-mini" data-open-env="${env.id}" style="text-align:left;color:inherit">
+            <div>${esc(env.icon||"🏡")} <strong>${esc(env.name)}</strong></div>
+            <small>${envPlants.length} plante${envPlants.length>1?"s":""}</small>
+            <small>${temp?`🌡️ ${esc(temp)} °C`:""} ${hum?`💧 ${esc(hum)} %`:""}</small>
+          </button>`;
+        }).join("") : `<div class="empty" style="grid-column:1/-1">Aucun environnement.</div>`}
+      </div>
     </section>
+
     <section>
-      <div class="section-title"><h2>Dernières entrées</h2><button id="seeJournal">Journal</button></div>
-      <div class="card-list" style="margin-top:10px">${entries.length?(await Promise.all(entries.slice(0,4).map(e=>entryCard(e,plants)))).join(""):`<div class="empty">Les observations, arrosages et mesures apparaîtront ici.</div>`}</div>
-    </section>`;
+      <div class="section-title"><h2>Aujourd'hui</h2><button id="seeJournal">Journal</button></div>
+      <div class="card-list" style="margin-top:10px">
+        ${todayEntries.length?(await Promise.all(todayEntries.slice(0,3).map(e=>entryCard(e,plants)))).join(""):`<div class="today-empty">Rien pour aujourd'hui</div>`}
+      </div>
+    </section>
+
+    <section>
+      <div class="section-title"><h2>Photos récentes</h2><button id="openPhotos">Voir plus</button></div>
+      <div class="card-list" style="margin-top:10px">
+        ${recentPhotos.length?(await Promise.all(recentPhotos.map(e=>entryCard(e,plants)))).join(""):`<div class="empty">Aucune photo récente.</div>`}
+      </div>
+    </section>
+
+    <section>
+      <div class="section-title"><h2>À surveiller</h2><button id="seeGarden">Jardin</button></div>
+      <div class="card-list" style="margin-top:10px">
+        ${attention.length?attention.slice(0,4).map(p=>plantCard(p,entries,environments)).join(""):`<div class="empty">Aucune plante signalée en ce moment.</div>`}
+      </div>
+    </section>
+  `;
+
   qs("#dashAddPlant").onclick=()=>showPlantForm();
   qs("#dashAddEntry").onclick=()=>plants.length&&showEntryForm();
-  qs("#seePlants").onclick=()=>setRoute("plants"); qs("#seeJournal").onclick=()=>setRoute("journal");
+  qs("#quickPhoto").onclick=()=>plants.length&&showEntryForm(null, plants[0]?.id || null, "photo");
+  qs("#quickJournal").onclick=()=>setRoute("journal");
+  qs("#quickGarden").onclick=()=>setRoute("garden");
+  qs("#seeGarden").onclick=()=>setRoute("garden");
+  qs("#seeGardenEnv").onclick=()=>{gardenMode="environments"; setRoute("garden");};
+  qs("#seeJournal").onclick=()=>setRoute("journal");
+  qs("#openPhotos").onclick=()=>setRoute("journal");
+  qsa("[data-open-env]").forEach(b=>b.onclick=()=>{gardenMode="environments"; setRoute("garden");});
   bindPlantCards(); bindEntryCards();
 }
 
-function plantCard(p,entries){
+
+function plantCard(p,entries,environments=[]){
   const st=severityStatus(entries,p.id), h=latestFor(entries,p.id,"height"), d=ageDays(p.startDate);
+  const env=environments.find(x=>x.id===p.environmentId);
   return `<button class="plant-card" data-plant="${p.id}" style="width:100%;text-align:left;color:inherit">
     ${plantPhotoHTML(p)}
     <div><h3>${esc(p.name)}</h3><p>${esc([p.species,p.variety].filter(Boolean).join(" • ")||"Plante")}</p>
-    <div class="badges">${p.stage?`<span class="badge">${esc(p.stage)}</span>`:""}${d!=null?`<span class="badge">J+${d}</span>`:""}${h?`<span class="badge">${esc(h)} cm</span>`:""}</div></div>
+    <div class="badges">${env?`<span class="badge">🏡 ${esc(env.name)}</span>`:""}${p.stage?`<span class="badge">${esc(p.stage)}</span>`:""}${d!=null?`<span class="badge">J+${d}</span>`:""}${h?`<span class="badge">${esc(h)} cm</span>`:""}</div></div>
     <span class="status-dot ${st==="ok"?"":st}"></span>
   </button>`;
 }
@@ -147,19 +269,252 @@ async function entryCard(e,plants){
 }
 
 async function renderPlants(app){
-  const [plants,entries]=await Promise.all([all("plants"),all("entries")]);
+  const [plants,entries,environments]=await Promise.all([all("plants"),all("entries"),all("environments")]);
   app.innerHTML=`<div class="actions"><button class="primary" id="addPlant">＋ Nouvelle plante</button></div>
+  <div class="form-grid">
+    <div class="field full"><label>Environnement</label><select id="plantEnvFilter"><option value="">Tous les environnements</option>${environments.map(e=>`<option value="${e.id}">${esc(e.icon||"🏡")} ${esc(e.name)}</option>`).join("")}<option value="__none">Sans environnement</option></select></div>
+  </div>
   <div class="search"><input id="plantSearch" type="search" placeholder="Rechercher une plante…"></div>
-  <div class="card-list" id="plantList">${plants.length?plants.map(p=>plantCard(p,entries)).join(""):`<div class="empty">Crée ta première plante pour commencer.</div>`}</div>`;
+  <div class="card-list" id="plantList">${plants.length?plants.map(p=>plantCard(p,entries,environments)).join(""):`<div class="empty">Crée ta première plante pour commencer.</div>`}</div>`;
   qs("#addPlant").onclick=()=>showPlantForm();
-  qs("#plantSearch").oninput=e=>{
-    const q=e.target.value.toLowerCase();
-    qsa("[data-plant]").forEach(el=>el.style.display=el.textContent.toLowerCase().includes(q)?"":"none");
+  const applyPlantFilters=()=>{
+    const q=qs("#plantSearch").value.toLowerCase(), env=qs("#plantEnvFilter").value;
+    qsa("[data-plant]").forEach(el=>{
+      const p=plants.find(x=>x.id===el.dataset.plant);
+      const envOk=!env || (env==="__none" ? !p.environmentId : p.environmentId===env);
+      el.style.display=el.textContent.toLowerCase().includes(q)&&envOk?"":"none";
+    });
   };
+  qs("#plantSearch").oninput=applyPlantFilters;
+  qs("#plantEnvFilter").onchange=applyPlantFilters;
   bindPlantCards();
 }
 function bindPlantCards(){qsa("[data-plant]").forEach(b=>b.onclick=()=>showPlantDetail(b.dataset.plant))}
 function bindEntryCards(){qsa("[data-entry]").forEach(b=>b.onclick=()=>showEntryDetail(b.dataset.entry))}
+
+
+
+async function renderGarden(app){
+  const [plants,entries,environments]=await Promise.all([all("plants"),all("entries"),all("environments")]);
+  const phaseOptions=[...new Set(plants.map(p=>p.stage).filter(Boolean))];
+  const environmentMap=new Map(environments.map(e=>[e.id,e]));
+  const groupedPlants=(list)=>{
+    const groups={};
+    list.forEach(p=>{
+      const env=environmentMap.get(p.environmentId);
+      const key=env?env.name:"Sans environnement";
+      if(!groups[key])groups[key]={env,items:[]};
+      groups[key].items.push(p);
+    });
+    return Object.entries(groups).sort((a,b)=>a[0].localeCompare(b[0],"fr"));
+  };
+
+  app.innerHTML=`
+    <section>
+      <div class="segmented" id="gardenSegment">
+        <button data-mode="plants" class="${gardenMode==="plants"?"active":""}">🌱 Plantes</button>
+        <button data-mode="environments" class="${gardenMode==="environments"?"active":""}">🏡 Environnements</button>
+      </div>
+    </section>
+
+    <section id="gardenPlants" class="${gardenMode==="plants"?"":"hidden"}">
+      <div class="filter-row">
+        <div class="field">
+          <label>Phase</label>
+          <select id="gardenPhaseFilter">
+            <option value="">Toutes</option>
+            ${phaseOptions.map(x=>`<option value="${esc(x)}">${esc(x)}</option>`).join("")}
+          </select>
+        </div>
+        <div class="field">
+          <label>Environnement</label>
+          <select id="gardenEnvFilter">
+            <option value="">Tous</option>
+            ${environments.map(e=>`<option value="${e.id}">${esc(e.name)}</option>`).join("")}
+            <option value="__none">Sans environnement</option>
+          </select>
+        </div>
+      </div>
+      <div id="gardenPlantsList" class="card-list"></div>
+    </section>
+
+    <section id="gardenEnvironments" class="${gardenMode==="environments"?"":"hidden"}">
+      <div class="actions"><button class="primary" id="gardenAddEnvironment">＋ Nouvel environnement</button></div>
+      <div id="gardenEnvironmentList" class="card-list"></div>
+    </section>
+
+    <button class="fab" id="gardenFab" aria-label="Ajouter">＋</button>
+  `;
+
+  const renderGroupedPlants=()=>{
+    const phase=qs("#gardenPhaseFilter")?.value || "";
+    const envFilter=qs("#gardenEnvFilter")?.value || "";
+    const filtered=plants.filter(p=>{
+      const phaseOk=!phase || p.stage===phase;
+      const envOk=!envFilter || (envFilter==="__none" ? !p.environmentId : p.environmentId===envFilter);
+      return phaseOk && envOk;
+    });
+    const groups=groupedPlants(filtered);
+    const html=groups.length ? groups.map(([groupName,group])=>`
+      <div class="env-group">
+        <div class="group-header">
+          <h3>${esc(group.env?.icon||"")} ${esc(groupName)}</h3>
+          <span class="small">${group.items.length}</span>
+        </div>
+        <div class="plant-list-compact">
+          ${group.items.map(p=>gardenPlantCard(p,entries,environments)).join("")}
+        </div>
+      </div>
+    `).join("") : `<div class="empty">Aucune plante avec ces filtres.</div>`;
+    qs("#gardenPlantsList").innerHTML=html;
+    bindPlantCards();
+  };
+
+  const renderEnvironmentCards=()=>{
+    const sorted=[...environments].sort((a,b)=>(a.order??99)-(b.order??99)||a.name.localeCompare(b.name,"fr"));
+    const html=sorted.length ? sorted.map(env=>{
+      const envPlants=plants.filter(p=>p.environmentId===env.id);
+      const envEntries=entries.filter(e=>envPlants.some(p=>p.id===e.plantId)).sort((a,b)=>new Date(b.date)-new Date(a.date));
+      const lastTemp=envEntries.find(e=>e.temp)?.temp;
+      const lastHum=envEntries.find(e=>e.humidity)?.humidity;
+      return `
+        <div class="environment-card">
+          <div class="environment-head">
+            <div class="environment-title">
+              <div class="environment-icon">${esc(env.icon||"🏡")}</div>
+              <div>
+                <h3>${esc(env.name)}</h3>
+                <p>${envPlants.length} plante${envPlants.length>1?"s":""}</p>
+              </div>
+            </div>
+            <button class="icon-btn" data-edit-env="${env.id}" aria-label="Modifier">⋯</button>
+          </div>
+          ${env.description?`<p>${esc(env.description)}</p>`:""}
+          <div class="badges">
+            ${lastTemp?`<span class="badge">🌡️ ${esc(lastTemp)} °C</span>`:""}
+            ${lastHum?`<span class="badge">💧 ${esc(lastHum)} %</span>`:""}
+            ${envPlants.length?`<span class="badge">${envPlants.length} plante${envPlants.length>1?"s":""}</span>`:""}
+          </div>
+          <div class="environment-plant-list">
+            ${envPlants.length ? envPlants.map(p=>`
+              <button class="environment-plant" data-plant="${p.id}" style="width:100%;text-align:left;color:inherit">
+                <strong>${esc(p.name)}</strong>
+                <span>${esc(p.stage||"")}</span>
+              </button>
+            `).join("") : `<div class="small">Aucune plante assignée.</div>`}
+          </div>
+        </div>
+      `;
+    }).join("") : `<div class="empty">Aucun environnement pour le moment.</div>`;
+    qs("#gardenEnvironmentList").innerHTML=html;
+    qsa("[data-edit-env]").forEach(b=>b.onclick=()=>showEnvironmentForm(b.dataset.editEnv));
+    bindPlantCards();
+  };
+
+  renderGroupedPlants();
+  renderEnvironmentCards();
+
+  qsa("#gardenSegment button").forEach(btn=>btn.onclick=()=>{
+    gardenMode=btn.dataset.mode;
+    render();
+  });
+  qs("#gardenPhaseFilter").onchange=renderGroupedPlants;
+  qs("#gardenEnvFilter").onchange=renderGroupedPlants;
+  qs("#gardenAddEnvironment").onclick=()=>showEnvironmentForm();
+  qs("#gardenFab").onclick=()=>gardenMode==="plants" ? showPlantForm() : showEnvironmentForm();
+}
+
+function gardenPlantCard(p,entries,environments=[]){
+  const env=environments.find(x=>x.id===p.environmentId);
+  const h=latestFor(entries,p.id,"height");
+  const d=ageDays(p.startDate);
+  return `<button class="plant-card" data-plant="${p.id}" style="width:100%;text-align:left;color:inherit">
+    ${plantPhotoHTML(p)}
+    <div>
+      <h3>${esc(p.name)}</h3>
+      <div class="compact-sub">
+        ${d!=null?`<span>🌱 J+${d}</span>`:""}
+        ${p.stage?`<span>${esc(p.stage)}</span>`:""}
+        ${h?`<span>${esc(h)} cm</span>`:""}
+      </div>
+    </div>
+    <span class="status-dot ${severityStatus(entries,p.id)==="ok"?"":severityStatus(entries,p.id)}"></span>
+  </button>`;
+}
+async function renderEnvironments(app){
+  const [environments,plants,entries]=await Promise.all([all("environments"),all("plants"),all("entries")]);
+  const sorted=[...environments].sort((a,b)=>(a.order??99)-(b.order??99)||a.name.localeCompare(b.name,"fr"));
+  const cards=sorted.map(env=>{
+    const ps=plants.filter(p=>p.environmentId===env.id);
+    const envEntries=entries.filter(e=>ps.some(p=>p.id===e.plantId)).sort((a,b)=>new Date(b.date)-new Date(a.date));
+    const temp=envEntries.find(e=>e.temp)?.temp;
+    const hum=envEntries.find(e=>e.humidity)?.humidity;
+    const latest=envEntries[0];
+    return `<div class="environment-card">
+      <div class="environment-head">
+        <div class="environment-title">
+          <div class="environment-icon">${esc(env.icon||"🏡")}</div>
+          <div><h3>${esc(env.name)}</h3><p>${ps.length} plante${ps.length>1?"s":""}</p></div>
+        </div>
+        <button class="icon-btn" data-edit-env="${env.id}" aria-label="Modifier">⋯</button>
+      </div>
+      ${env.description?`<p>${esc(env.description)}</p>`:""}
+      <div class="badges">
+        ${temp?`<span class="badge">🌡️ ${esc(temp)} °C</span>`:""}
+        ${hum?`<span class="badge">💧 ${esc(hum)} %</span>`:""}
+        ${latest?`<span class="badge">Maj ${fmtDate(latest.date)}</span>`:""}
+      </div>
+      <div class="environment-plant-list">
+        ${ps.length?ps.map(p=>`<button class="environment-plant" data-plant="${p.id}" style="width:100%;color:inherit;text-align:left">
+          <strong>${esc(p.name)}</strong><span>${esc(p.stage||"")}</span>
+        </button>`).join(""):`<div class="small">Aucune plante assignée.</div>`}
+      </div>
+    </div>`;
+  }).join("");
+  const unassigned=plants.filter(p=>!p.environmentId);
+  app.innerHTML=`
+    <section class="hero">
+      <h2>Organise tes zones de culture 🏡</h2>
+      <p>Assigne chaque plante à une zone pour distinguer facilement ta tente de propagation, ta tente 1×1 m, ton potager, ou d’autres espaces.</p>
+      <div class="actions" style="margin-top:16px"><button class="primary" id="addEnvironment">＋ Nouvel environnement</button></div>
+    </section>
+    <div class="card-list">${cards||`<div class="empty">Aucun environnement.</div>`}</div>
+    ${unassigned.length?`<div class="environment-card"><div class="environment-head"><div class="environment-title"><div class="environment-icon">❔</div><div><h3>Sans environnement</h3><p>${unassigned.length} plante${unassigned.length>1?"s":""}</p></div></div></div><div class="environment-plant-list">${unassigned.map(p=>`<button class="environment-plant" data-plant="${p.id}" style="width:100%;color:inherit;text-align:left"><strong>${esc(p.name)}</strong><span>À assigner</span></button>`).join("")}</div></div>`:""}
+  `;
+  qs("#addEnvironment").onclick=()=>showEnvironmentForm();
+  qsa("[data-edit-env]").forEach(b=>b.onclick=()=>showEnvironmentForm(b.dataset.editEnv));
+  bindPlantCards();
+}
+
+async function showEnvironmentForm(id=null){
+  const env=id?await getOne("environments",id):null;
+  qs("#modalTitle").textContent=env?"Modifier l’environnement":"Nouvel environnement";
+  qs("#modalBody").innerHTML=`
+    <div class="form-grid">
+      <div class="field"><label>Icône</label><input id="envIcon" value="${esc(env?.icon||"🏡")}" placeholder="🏡"></div>
+      <div class="field"><label>Nom *</label><input id="envName" value="${esc(env?.name||"")}" placeholder="Ex. Tente 1×1 m"></div>
+      <div class="field full"><label>Description</label><textarea id="envDescription" placeholder="Ex. Tente principale, potager extérieur…">${esc(env?.description||"")}</textarea></div>
+      <div class="field full actions">
+        <button type="button" class="primary" id="saveEnvironment">Enregistrer</button>
+        ${env?`<button type="button" class="danger-btn" id="deleteEnvironment">Supprimer</button>`:""}
+      </div>
+    </div>`;
+  qs("#modal").showModal();
+  qs("#saveEnvironment").onclick=async()=>{
+    const name=qs("#envName").value.trim();
+    if(!name)return alert("Donne un nom à l’environnement.");
+    await put("environments",{id:env?.id||uid(),name,icon:qs("#envIcon").value.trim()||"🏡",description:qs("#envDescription").value.trim(),order:env?.order??99,createdAt:env?.createdAt||new Date().toISOString(),updatedAt:new Date().toISOString()});
+    qs("#modal").close();showToast("Environnement enregistré");render();
+  };
+  if(env)qs("#deleteEnvironment").onclick=async()=>{
+    const plants=await all("plants");
+    const assigned=plants.filter(p=>p.environmentId===env.id);
+    if(assigned.length && !confirm(`${assigned.length} plante(s) utilisent cet environnement. Elles deviendront « sans environnement ». Continuer ?`))return;
+    for(const p of assigned){p.environmentId="";await put("plants",p)}
+    await del("environments",env.id);
+    qs("#modal").close();showToast("Environnement supprimé");render();
+  };
+}
 
 async function renderJournal(app){
   const [plants,entries]=await Promise.all([all("plants"),all("entries")]);
@@ -214,8 +569,8 @@ function drawLine(canvas,data,unit){
 }
 
 async function renderSettings(app){
-  const [plants,entries]=await Promise.all([all("plants"),all("entries")]);
-  const size=(new Blob([JSON.stringify({plants,entries})]).size/1024).toFixed(0);
+  const [plants,entries,environments]=await Promise.all([all("plants"),all("entries"),all("environments")]);
+  const size=(new Blob([JSON.stringify({plants,entries,environments})]).size/1024).toFixed(0);
   app.innerHTML=`
     <div class="settings-card"><h3>Sauvegarde</h3><p class="small">Exporte régulièrement une copie de tes données. Les photos sont incluses dans la sauvegarde JSON.</p>
       <div class="actions"><button class="primary" id="exportJson">Exporter JSON</button><button class="secondary" id="importJson">Importer JSON</button></div>
@@ -227,24 +582,25 @@ async function renderSettings(app){
     <div class="settings-card"><h3>Données locales</h3>
       <div class="kv"><span>Plantes</span><strong>${plants.length}</strong></div>
       <div class="kv"><span>Entrées</span><strong>${entries.length}</strong></div>
+      <div class="kv"><span>Environnements</span><strong>${environments.length}</strong></div>
       <div class="kv"><span>Taille approx. sauvegarde</span><strong>${size} Ko</strong></div>
       <div class="actions" style="margin-top:12px"><button class="danger-btn" id="resetApp">Effacer toutes les données</button></div>
     </div>
     <div class="settings-card"><h3>Installation iPhone</h3><p class="small">Une fois l'app hébergée en HTTPS : ouvre-la dans Safari → Partager → « Sur l’écran d’accueil ». Elle pourra ensuite fonctionner hors ligne.</p></div>
-    <div class="settings-card"><h3>Version</h3><p class="small">Mon Jardin v1.0 — aucune pub, aucun abonnement, aucune donnée envoyée ailleurs.</p></div>`;
+    <div class="settings-card"><h3>Version</h3><p class="small">Grow in PF v1.3 — aucune pub, aucun abonnement, aucune donnée envoyée ailleurs.</p></div>`;
   qs("#exportJson").onclick=exportJSON;
   qs("#importJson").onclick=()=>qs("#importFile").click();
   qs("#importFile").onchange=importJSON;
   qs("#exportPlantsCsv").onclick=()=>exportCSV("plantes.csv",plants);
   qs("#exportEntriesCsv").onclick=()=>exportCSV("journal.csv",entries.map(e=>({...e,photo:e.photo?"[photo incluse dans JSON]":""})));
-  qs("#resetApp").onclick=async()=>{if(confirm("Effacer toutes les plantes, entrées et photos ?")){for(const p of plants)await del("plants",p.id);for(const e of entries)await del("entries",e.id);showToast("Données effacées");render()}};
+  qs("#resetApp").onclick=async()=>{if(confirm("Effacer toutes les plantes, entrées, environnements et photos ?")){for(const p of plants)await del("plants",p.id);for(const e of entries)await del("entries",e.id);for(const env of environments)await del("environments",env.id);showToast("Données effacées");await ensureDefaultEnvironments();render()}};
 }
 function download(name,content,type="application/octet-stream"){
   const a=document.createElement("a"),u=URL.createObjectURL(new Blob([content],{type}));a.href=u;a.download=name;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),2000)
 }
 async function exportJSON(){
-  const [plants,entries]=await Promise.all([all("plants"),all("entries")]);
-  download(`mon-jardin-sauvegarde-${new Date().toISOString().slice(0,10)}.json`,JSON.stringify({version:1,exportedAt:new Date().toISOString(),plants,entries},null,2),"application/json");
+  const [plants,entries,environments]=await Promise.all([all("plants"),all("entries"),all("environments")]);
+  download(`grow-in-pf-sauvegarde-${new Date().toISOString().slice(0,10)}.json`,JSON.stringify({version:2,exportedAt:new Date().toISOString(),plants,entries,environments},null,2),"application/json");
 }
 async function importJSON(ev){
   try{
@@ -252,7 +608,9 @@ async function importJSON(ev){
     const data=JSON.parse(await file.text());
     if(!Array.isArray(data.plants)||!Array.isArray(data.entries))throw new Error("Format invalide");
     if(!confirm(`Importer ${data.plants.length} plantes et ${data.entries.length} entrées ? Les éléments portant le même ID seront remplacés.`))return;
+    if(Array.isArray(data.environments)){for(const env of data.environments)await put("environments",env)}
     for(const p of data.plants)await put("plants",p);for(const e of data.entries)await put("entries",e);
+    await ensureDefaultEnvironments();
     showToast("Sauvegarde importée");render();
   }catch(e){alert("Import impossible : "+e.message)}
 }
@@ -265,7 +623,7 @@ function exportCSV(name,rows){
 
 function showQuickAdd(){
   Promise.all([all("plants")]).then(([plants])=>{
-    qs("#modalTitle").textContent="Ajouter";
+    qs("#modalTitle").textContent="Ajouter rapidement";
     qs("#modalBody").innerHTML=`<div class="actions" style="display:grid">
       <button type="button" class="primary" id="qaPlant">🌱 Nouvelle plante</button>
       <button type="button" class="secondary" id="qaEntry" ${plants.length?"":"disabled"}>🗒️ Entrée de journal</button>
@@ -277,7 +635,7 @@ function showQuickAdd(){
 }
 
 async function showPlantForm(id=null){
-  const p=id?await getOne("plants",id):null;
+  const [p,environments]=await Promise.all([id?getOne("plants",id):Promise.resolve(null),all("environments")]);
   qs("#modalTitle").textContent=p?"Modifier la plante":"Nouvelle plante";
   qs("#modalBody").innerHTML=`
     <div class="form-grid">
@@ -287,7 +645,7 @@ async function showPlantForm(id=null){
       <div class="field"><label>Date de départ</label><input id="pStart" type="date" value="${p?.startDate?.slice(0,10)||""}"></div>
       <div class="field"><label>Stade</label><select id="pStage">${["Plantule","Croissance","Préfloraison","Floraison","Fructification","Maturation","Repos"].map(x=>`<option ${p?.stage===x?"selected":""}>${x}</option>`).join("")}</select></div>
       <div class="field"><label>Volume du pot (L)</label><input id="pPot" type="number" step="0.1" value="${esc(p?.pot||"")}"></div>
-      <div class="field"><label>Emplacement</label><select id="pEnv">${["Intérieur","Extérieur","Serre","Balcon / terrasse"].map(x=>`<option ${p?.environment===x?"selected":""}>${x}</option>`).join("")}</select></div>
+      <div class="field"><label>Environnement</label><select id="pEnv"><option value="">Sans environnement</option>${environments.map(x=>`<option value="${x.id}" ${p?.environmentId===x.id?"selected":""}>${esc(x.icon||"🏡")} ${esc(x.name)}</option>`).join("")}</select></div>
       <div class="field full"><label>Substrat</label><input id="pSoil" value="${esc(p?.soil||"")}" placeholder="Terreau, coco, mélange…"></div>
       <div class="field full"><label>Photo</label><input id="pPhoto" type="file" accept="image/*" capture="environment"><div class="small">Facultatif. Max ~3,5 Mo par photo.</div></div>
       <div class="field full"><label>Notes</label><textarea id="pNotes" placeholder="Origine, particularités, objectifs…">${esc(p?.notes||"")}</textarea></div>
@@ -298,14 +656,14 @@ async function showPlantForm(id=null){
     try{
       const name=qs("#pName").value.trim();if(!name)return alert("Donne un nom à la plante.");
       const file=qs("#pPhoto").files[0]; const photo=file?await blobToDataURL(file):p?.photo||null;
-      await put("plants",{id:p?.id||uid(),name,species:qs("#pSpecies").value.trim(),variety:qs("#pVariety").value.trim(),startDate:qs("#pStart").value,stage:qs("#pStage").value,pot:qs("#pPot").value,environment:qs("#pEnv").value,soil:qs("#pSoil").value.trim(),notes:qs("#pNotes").value.trim(),photo,createdAt:p?.createdAt||new Date().toISOString(),updatedAt:new Date().toISOString()});
+      await put("plants",{id:p?.id||uid(),name,species:qs("#pSpecies").value.trim(),variety:qs("#pVariety").value.trim(),startDate:qs("#pStart").value,stage:qs("#pStage").value,pot:qs("#pPot").value,environmentId:qs("#pEnv").value,environment:"",soil:qs("#pSoil").value.trim(),notes:qs("#pNotes").value.trim(),photo,createdAt:p?.createdAt||new Date().toISOString(),updatedAt:new Date().toISOString()});
       qs("#modal").close();showToast("Plante enregistrée");render();
     }catch(e){alert(e.message)}
   };
   if(p)qs("#deletePlant").onclick=async()=>{if(confirm(`Supprimer ${p.name} et toutes ses entrées ?`)){const es=(await all("entries")).filter(e=>e.plantId===p.id);for(const e of es)await del("entries",e.id);await del("plants",p.id);qs("#modal").close();showToast("Plante supprimée");render()}};
 }
 
-async function showEntryForm(existing=null,forcedPlant=null){
+async function showEntryForm(existing=null,forcedPlant=null,forcedType=null){
   const plants=await all("plants"); if(!plants.length)return showToast("Crée d’abord une plante");
   const e=existing;
   qs("#modalTitle").textContent=e?"Modifier l’entrée":"Nouvelle entrée";
@@ -313,7 +671,7 @@ async function showEntryForm(existing=null,forcedPlant=null){
   qs("#modalBody").innerHTML=`
   <div class="form-grid">
     <div class="field"><label>Plante *</label><select id="ePlant">${plants.map(p=>`<option value="${p.id}" ${(e?.plantId||forcedPlant)===p.id?"selected":""}>${esc(p.name)}</option>`).join("")}</select></div>
-    <div class="field"><label>Type *</label><select id="eType">${Object.entries(ENTRY_TYPES).map(([k,v])=>`<option value="${k}" ${e?.type===k?"selected":""}>${v[0]} ${v[1]}</option>`).join("")}</select></div>
+    <div class="field"><label>Type *</label><select id="eType">${Object.entries(ENTRY_TYPES).map(([k,v])=>`<option value="${k}" ${((e?.type||forcedType||"observation")===k)?"selected":""}>${v[0]} ${v[1]}</option>`).join("")}</select></div>
     <div class="field full"><label>Date et heure</label><input id="eDate" type="datetime-local" value="${e?.date?new Date(new Date(e.date)-new Date().getTimezoneOffset()*60000).toISOString().slice(0,16):nowLocal}"></div>
     <div class="form-section">Environnement</div>
     <div class="field"><label>Température (°C)</label><input id="eTemp" type="number" step="0.1" value="${esc(e?.temp||"")}"></div>
@@ -344,38 +702,101 @@ async function showEntryForm(existing=null,forcedPlant=null){
   if(e)qs("#deleteEntry").onclick=async()=>{if(confirm("Supprimer cette entrée ?")){await del("entries",e.id);qs("#modal").close();showToast("Entrée supprimée");render()}};
 }
 async function showEntryDetail(id){const e=await getOne("entries",id);if(e)showEntryForm(e)}
+
 async function showPlantDetail(id){
-  const [p,entries]=await Promise.all([getOne("plants",id),all("entries")]); if(!p)return;
+  const [p,entries,environments]=await Promise.all([getOne("plants",id),all("entries"),all("environments")]); if(!p)return;
+  const env=environments.find(x=>x.id===p.environmentId);
   const es=entries.filter(e=>e.plantId===id).sort((a,b)=>new Date(b.date)-new Date(a.date));
+  const todayStr=new Date().toISOString().slice(0,10);
+  const todayEntries=es.filter(e=>e.date.slice(0,10)===todayStr);
   qs("#modalTitle").textContent=p.name;
   qs("#modalBody").innerHTML=`
-    <div class="plant-detail-head">${plantPhotoHTML(p)}<div><h2>${esc(p.name)}</h2><p class="small">${esc([p.species,p.variety].filter(Boolean).join(" • ")||"Plante")}</p><div class="badges">${p.stage?`<span class="badge">${esc(p.stage)}</span>`:""}${ageDays(p.startDate)!=null?`<span class="badge">J+${ageDays(p.startDate)}</span>`:""}</div></div></div>
-    <hr>
-    <div class="grid">
-      <div class="metric"><div class="label">HAUTEUR</div><div class="value">${latestFor(es,id,"height")?latestFor(es,id,"height")+" cm":"—"}</div></div>
-      <div class="metric"><div class="label">DERNIER ARROSAGE</div><div class="value" style="font-size:18px">${(()=>{const x=es.find(e=>+e.water>0);return x?fmtDate(x.date):"—"})()}</div></div>
-      <div class="metric"><div class="label">POT</div><div class="value">${p.pot?p.pot+" L":"—"}</div></div>
-      <div class="metric"><div class="label">ENTRÉES</div><div class="value">${es.length}</div></div>
+    <div class="detail-hero">
+      ${p.photo?`<img src="${p.photo}" alt="">`:""}
+      <div class="detail-hero-overlay">
+        <h2>${esc(p.name)}</h2>
+        <div class="detail-meta">
+          ${p.stage?`<span class="badge">🌱 ${esc(p.stage)}</span>`:""}
+          ${p.variety?`<span class="badge">🧬 ${esc(p.variety)}</span>`:""}
+          ${env?`<span class="badge">🏡 ${esc(env.name)}</span>`:""}
+        </div>
+        <div class="detail-age">🕘 ${ageDays(p.startDate)!=null?`${ageDays(p.startDate)} jours (${Math.max(1,Math.ceil(ageDays(p.startDate)/7))} semaines)`:"Date non renseignée"}</div>
+      </div>
     </div>
-    <hr>
-    ${p.soil?`<div class="kv"><span>Substrat</span><strong>${esc(p.soil)}</strong></div>`:""}
-    ${p.environment?`<div class="kv"><span>Emplacement</span><strong>${esc(p.environment)}</strong></div>`:""}
-    ${p.notes?`<p class="entry-note">${esc(p.notes)}</p>`:""}
-    <div class="actions" style="margin-top:16px"><button type="button" class="primary" id="detailAdd">＋ Ajouter une entrée</button><button type="button" class="secondary" id="detailEdit">Modifier</button></div>
-    <div class="section-title" style="margin-top:22px"><h2>Historique récent</h2></div>
-    <div class="card-list" style="margin-top:10px">${es.length?(await Promise.all(es.slice(0,5).map(e=>entryCard(e,[p])))).join(""):`<div class="empty">Aucune entrée.</div>`}</div>`;
+
+    <div class="actions-grid-4">
+      <button type="button" class="action-tile" id="detailAction"><span class="icon">⚡</span>Action</button>
+      <button type="button" class="action-tile" id="detailJournal"><span class="icon">🗒️</span>Journal</button>
+      <button type="button" class="action-tile" id="detailPhoto"><span class="icon">📷</span>Photo</button>
+      <button type="button" class="action-tile" id="detailEdit"><span class="icon">⋯</span>Plus</button>
+    </div>
+
+    <div class="section-caption" style="margin-top:18px">Actions instantanées</div>
+    <div class="actions-grid-4">
+      <button type="button" class="action-tile" id="qaWater"><span class="icon">💧</span>Arrosage</button>
+      <button type="button" class="action-tile" id="qaFeed"><span class="icon">🧪</span>Engrais</button>
+      <button type="button" class="action-tile" id="qaPest"><span class="icon">🐛</span>Répulsif</button>
+      <button type="button" class="action-tile" id="qaTrim"><span class="icon">✂️</span>Taille</button>
+    </div>
+
+    <div class="section-caption" style="margin-top:18px">Aujourd'hui</div>
+    ${todayEntries.length?`<div class="card-list">${await Promise.all(todayEntries.slice(0,3).map(e=>entryCard(e,[p]))).then(list=>list.join(""))}</div>`:`<div class="today-empty">Rien pour aujourd'hui</div>`}
+
+    <div class="section-caption" style="margin-top:18px">Historique récent</div>
+    <div class="card-list">${es.length?(await Promise.all(es.slice(0,4).map(e=>entryCard(e,[p])))).join(""):`<div class="empty">Aucune entrée.</div>`}</div>
+  `;
   qs("#modal").showModal();
-  qs("#detailAdd").onclick=()=>{qs("#modal").close();showEntryForm(null,p.id)};
+
+  qs("#detailAction").onclick=()=>{qs("#modal").close();showEntryForm(null,p.id)};
+  qs("#detailJournal").onclick=()=>setRoute("journal");
+  qs("#detailPhoto").onclick=()=>{qs("#modal").close();showEntryForm(null,p.id,"photo")};
   qs("#detailEdit").onclick=()=>{qs("#modal").close();showPlantForm(p.id)};
+  qs("#qaWater").onclick=()=>{qs("#modal").close();showEntryForm(null,p.id,"watering")};
+  qs("#qaFeed").onclick=()=>{qs("#modal").close();showEntryForm(null,p.id,"nutrition")};
+  qs("#qaPest").onclick=()=>{qs("#modal").close();showEntryForm(null,p.id,"pest")};
+  qs("#qaTrim").onclick=()=>{qs("#modal").close();showEntryForm(null,p.id,"intervention")};
+
   qsa("[data-entry]").forEach(b=>b.onclick=()=>{qs("#modal").close();showEntryDetail(b.dataset.entry)});
 }
 
+
+
+async function ensureDefaultEnvironments(){
+  let envs=await all("environments");
+  const defaults=[
+    {id:"env-propagation",name:"Tente de propagation",icon:"🌱",description:"Zone dédiée aux semis, boutures et jeunes plantes.",order:1},
+    {id:"env-tente-1x1",name:"Tente 1×1 m",icon:"⛺",description:"Tente principale de culture indoor.",order:2},
+    {id:"env-potager",name:"Potager",icon:"🌿",description:"Plantes cultivées au potager / en extérieur.",order:3}
+  ];
+  for(const d of defaults){
+    if(!envs.some(e=>e.id===d.id || e.name.toLowerCase()===d.name.toLowerCase())){
+      await put("environments",{...d,createdAt:new Date().toISOString(),updatedAt:new Date().toISOString()});
+    }
+  }
+  envs=await all("environments");
+
+  // Migration douce depuis l'ancien champ "environment"
+  const plants=await all("plants");
+  for(const p of plants){
+    if(p.environmentId)continue;
+    const legacy=(p.environment||"").trim().toLowerCase();
+    if(!legacy)continue;
+    let match=envs.find(e=>e.name.toLowerCase()===legacy);
+    if(!match){
+      const id="env-"+uid();
+      match={id,name:p.environment,icon:"🏡",description:"Importé depuis l’ancienne version.",order:90,createdAt:new Date().toISOString(),updatedAt:new Date().toISOString()};
+      await put("environments",match); envs.push(match);
+    }
+    p.environmentId=match.id;
+    await put("plants",p);
+  }
+}
 async function seedDemo(){
   const plants=await all("plants");if(plants.length)return;
   // Démarrage volontairement vide : aucune donnée d'exemple ne pollue le journal.
 }
 (async function init(){
-  db=await openDB(); await seedDemo();
+  db=await openDB(); await ensureDefaultEnvironments(); await seedDemo();
   if("serviceWorker" in navigator && location.protocol.startsWith("http")) navigator.serviceWorker.register("./sw.js").catch(()=>{});
   render();
 })();

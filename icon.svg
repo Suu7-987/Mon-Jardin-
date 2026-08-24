@@ -1,7 +1,27 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
-<rect width="512" height="512" rx="112" fill="#10241a"/>
-<path d="M256 406c-18-73 12-138 76-190 25-20 55-36 92-49-10 103-66 179-168 239Z" fill="#74e69e"/>
-<path d="M255 405c14-112-25-195-126-249-17 117 29 207 126 249Z" fill="#3bb96d"/>
-<path d="M253 402c-2-113 41-210 136-279" stroke="#d5ffe2" stroke-width="18" stroke-linecap="round" fill="none"/>
-<path d="M252 402c-2-97-31-174-89-231" stroke="#d5ffe2" stroke-width="18" stroke-linecap="round" fill="none"/>
+<defs>
+  <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+    <stop offset="0%" stop-color="#08170f"/>
+    <stop offset="100%" stop-color="#133523"/>
+  </linearGradient>
+  <linearGradient id="sun" x1="0" y1="0" x2="0" y2="1">
+    <stop offset="0%" stop-color="#7cf7a5"/>
+    <stop offset="100%" stop-color="#2fd35f"/>
+  </linearGradient>
+  <linearGradient id="wave" x1="0" y1="0" x2="1" y2="0">
+    <stop offset="0%" stop-color="#6be6b5"/>
+    <stop offset="100%" stop-color="#2cb67d"/>
+  </linearGradient>
+</defs>
+<rect width="512" height="512" rx="112" fill="url(#bg)"/>
+<circle cx="365" cy="138" r="58" fill="url(#sun)" opacity="0.95"/>
+<path d="M74 308c50-66 105-104 165-104 34 0 67 12 99 38 17 14 35 31 52 53-43 7-80 23-112 48-23 18-43 40-60 65-47-16-87-42-119-78-11-12-19-20-25-22Z" fill="#1e6d43"/>
+<path d="M46 360c54-24 103-22 148 8 25 16 50 41 73 72H68c-13 0-22-7-22-20v-60Z" fill="#0f5631"/>
+<path d="M38 378c68-18 124-2 170 48" stroke="#95ffd1" stroke-width="16" stroke-linecap="round" fill="none" opacity="0.85"/>
+<path d="M142 393c41-77 88-137 141-178" stroke="#d5ffe8" stroke-width="18" stroke-linecap="round" fill="none"/>
+<path d="M167 369c29-11 63-9 98 5 18 8 37 19 57 34" stroke="#d5ffe8" stroke-width="14" stroke-linecap="round" fill="none" opacity="0.9"/>
+<path d="M284 214c-20 14-39 33-57 57-12 15-24 34-36 56-28-15-49-36-61-62 49-6 101-24 154-51Z" fill="#56d985"/>
+<path d="M291 262c47 7 92 29 132 69 16 15 31 33 45 54H248c7-41 21-78 43-123Z" fill="url(#wave)"/>
+<path d="M66 432c65-29 126-21 184 25" stroke="#79ffd1" stroke-width="18" stroke-linecap="round" fill="none"/>
+<path d="M214 394c37-6 74 0 112 17 31 14 58 33 83 57" stroke="#d4ffee" stroke-width="16" stroke-linecap="round" fill="none"/>
 </svg>

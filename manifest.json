@@ -1,11 +1,11 @@
 {
-  "name": "Mon Jardin — Journal de plantes",
-  "short_name": "Mon Jardin",
+  "name": "Grow in PF — Journal de plantes",
+  "short_name": "Grow in PF",
   "start_url": "./",
   "display": "standalone",
   "background_color": "#0b1510",
   "theme_color": "#0f1f17",
-  "description": "Journal privé de suivi de plantes, hors ligne et sans abonnement.",
+  "description": "Journal privé de suivi de plantes, inspiré par la Polynésie française.",
   "icons": [
     {
       "src": "icon-192.png",
