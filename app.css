@@ -500,3 +500,176 @@ main{padding:14px 16px 18px;display:grid;gap:16px}
   .quick-grid,.env-mini-grid{grid-template-columns:repeat(3,1fr)}
   .env-mini strong{font-size:13px}
 }
+
+
+/* ===== Grow in PF V1.4 Home + Environment Journal ===== */
+.home-month-bar{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  gap:10px;
+  margin-bottom:8px;
+}
+.home-month-title{
+  font-size:16px;
+  font-weight:700;
+  letter-spacing:.08em;
+  text-transform:uppercase;
+}
+.home-week-strip{
+  display:grid;
+  grid-template-columns:repeat(7,1fr);
+  gap:10px;
+}
+.home-day{
+  text-align:center;
+  color:var(--text);
+}
+.home-day .dow{
+  color:var(--muted);
+  font-size:12px;
+  margin-bottom:8px;
+}
+.home-day .day-bubble{
+  width:48px;
+  height:48px;
+  margin:0 auto;
+  border-radius:24px;
+  display:grid;
+  place-items:center;
+  background:transparent;
+  color:var(--text);
+  font-size:16px;
+}
+.home-day.today .day-bubble{
+  background:rgba(193,163,10,.65);
+}
+.home-day .dot{
+  width:8px;height:8px;border-radius:50%;background:var(--accent);
+  margin:8px auto 0;
+}
+.home-tools{
+  display:grid;
+  grid-template-columns:repeat(5,1fr);
+  gap:12px;
+}
+.home-tool{
+  text-align:center;
+  color:var(--text);
+}
+.home-tool-circle{
+  width:72px;
+  height:72px;
+  margin:0 auto 10px;
+  border-radius:36px;
+  background:#a4d89c;
+  color:#08280f;
+  display:grid;
+  place-items:center;
+  font-size:30px;
+  font-weight:700;
+}
+.home-tool.dark .home-tool-circle{
+  background:#1f6f2e;
+  color:#d9f8de;
+}
+.home-tool span{
+  display:block;
+  font-size:13px;
+  line-height:1.2;
+}
+.home-tool small{
+  display:block;
+  font-size:13px;
+  line-height:1.15;
+}
+.home-section-title{
+  color:#d8d8dc;
+  font-size:12px;
+  font-weight:700;
+  letter-spacing:.08em;
+  text-transform:uppercase;
+  margin:2px 0 12px;
+}
+.environment-toolbar{
+  margin-bottom:18px;
+}
+.environment-actions{
+  display:flex;
+  gap:8px;
+  flex-wrap:wrap;
+  margin-top:12px;
+}
+.environment-actions button{flex:1}
+.environment-card{
+  padding:16px;
+}
+.environment-list-gap{
+  display:grid;
+  gap:14px;
+}
+.environment-detail-plants{
+  display:grid;
+  gap:8px;
+}
+.environment-plant-row{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  gap:10px;
+  background:var(--panel2);
+  border:1px solid rgba(255,255,255,.06);
+  border-radius:16px;
+  padding:10px 12px;
+}
+.environment-plant-row strong{display:block}
+.environment-plant-row small{color:var(--muted)}
+.env-entry-card{
+  background:var(--panel);
+  border:1px solid rgba(255,255,255,.06);
+  border-radius:18px;
+  padding:13px;
+  display:grid;
+  gap:8px;
+}
+.env-entry-card .top{
+  display:flex;
+  justify-content:space-between;
+  gap:10px;
+}
+.metric-pill-row{
+  display:flex;
+  flex-wrap:wrap;
+  gap:8px;
+}
+.metric-pill{
+  background:rgba(255,255,255,.06);
+  border:1px solid rgba(255,255,255,.06);
+  color:#d1d1d6;
+  border-radius:999px;
+  padding:6px 10px;
+  font-size:12px;
+}
+.manage-plant-list{
+  display:grid;
+  gap:10px;
+}
+.manage-plant-card{
+  background:var(--panel);
+  border:1px solid rgba(255,255,255,.06);
+  border-radius:18px;
+  padding:12px;
+  display:grid;
+  gap:10px;
+}
+.manage-plant-actions{
+  display:flex;
+  gap:8px;
+  flex-wrap:wrap;
+}
+.manage-plant-actions button{flex:1}
+@media(max-width:560px){
+  .home-tools{grid-template-columns:repeat(5,1fr);gap:8px}
+  .home-tool-circle{width:64px;height:64px;border-radius:32px;font-size:26px}
+  .home-tool span,.home-tool small{font-size:12px}
+}
