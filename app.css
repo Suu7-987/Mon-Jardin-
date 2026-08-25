@@ -673,3 +673,182 @@ main{padding:14px 16px 18px;display:grid;gap:16px}
   .home-tool-circle{width:64px;height:64px;border-radius:32px;font-size:26px}
   .home-tool span,.home-tool small{font-size:12px}
 }
+
+
+/* ===== Grow in PF V1.5 GWJ-inspired iPhone refinements ===== */
+.topbar{padding:calc(10px + env(safe-area-inset-top)) 14px 10px !important;grid-template-columns:38px 1fr 38px !important}
+.topbar-spacer{width:38px !important;height:38px !important}
+.eyebrow{font-size:10px !important;letter-spacing:.18em !important;color:#8f8f95 !important}
+h1{font-size:18px !important;font-weight:700 !important}
+main{padding:12px 12px 16px !important;gap:14px !important}
+.icon-btn{width:34px !important;height:34px !important;font-size:24px !important;border-radius:14px !important}
+.bottom-nav{grid-template-columns:repeat(5,1fr) !important;padding:8px 6px calc(8px + env(safe-area-inset-bottom)) !important}
+.nav-item span{font-size:18px !important}
+.nav-item small{font-size:9px !important}
+.plant-card,.entry-card,.settings-card,.environment-card,.timeline-card,.note-card,.hero,.metric,.canvas-card{border-radius:18px !important}
+.plant-card{grid-template-columns:54px 1fr auto !important;padding:12px !important;gap:10px !important}
+.plant-photo{width:54px !important;height:54px !important;border-radius:27px !important;font-size:24px !important}
+.plant-card h3,.environment-card h3{font-size:15px !important}
+.plant-card p,.environment-card p,.entry-note,.small{font-size:12px !important}
+.badge,.chip{font-size:10px !important;padding:5px 8px !important}
+.environment-icon{width:40px !important;height:40px !important;font-size:20px !important;border-radius:12px !important}
+.section-title h2,.hero h2{font-size:18px !important}
+.hero{padding:16px !important}
+.form-grid{gap:10px !important}
+.field input,.field select,.field textarea{padding:11px !important;border-radius:14px !important}
+.form-section{font-size:12px !important}
+.modal-card{padding:14px 14px calc(18px + env(safe-area-inset-bottom)) !important}
+
+.gwj-strip{
+  background:linear-gradient(180deg,#0f1114,#0d1210);
+  border:1px solid rgba(255,255,255,.06);
+  border-radius:22px;
+  padding:14px;
+}
+.gwj-strip-head{
+  display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:10px;
+}
+.gwj-strip-head .month{
+  font-size:15px;font-weight:800;letter-spacing:.10em;text-transform:uppercase;
+}
+.gwj-strip-head .tag{
+  color:#e6e6ea;font-size:11px;letter-spacing:.06em;text-transform:uppercase;
+}
+.gwj-week{
+  display:grid;grid-template-columns:repeat(7,1fr);gap:6px;
+}
+.gwj-day{
+  text-align:center;color:var(--text);background:transparent;border:0;padding:0;
+}
+.gwj-day .dow{color:var(--muted);font-size:11px;margin-bottom:6px}
+.gwj-day .bubble{
+  width:38px;height:38px;border-radius:19px;margin:0 auto;display:grid;place-items:center;font-size:14px;
+}
+.gwj-day.active .bubble{background:#9d870e;color:#fff}
+.gwj-day.today .bubble{outline:1px solid rgba(255,255,255,.18)}
+.gwj-day .dot{width:7px;height:7px;border-radius:50%;margin:7px auto 0}
+.gwj-day .dot.none{background:transparent}
+.gwj-day .dot.has{background:#33d17a}
+.gwj-day .dot.warn{background:#ff7b4a}
+.gwj-day .dot.photo{background:#53b6ff}
+
+.home-tools{
+  display:grid !important;
+  grid-template-columns:repeat(5,minmax(70px,1fr)) !important;
+  gap:10px !important;
+  overflow-x:auto;
+  padding-bottom:2px;
+}
+.home-tool{
+  min-width:70px;
+  text-align:center;
+}
+.home-tool-circle{
+  width:58px !important;height:58px !important;border-radius:29px !important;margin:0 auto 8px !important;
+  font-size:24px !important;background:#a7d69d !important;color:#0d2714 !important;
+}
+.home-tool.dark .home-tool-circle{background:#1f6f2e !important;color:#d7fadc !important}
+.home-tool span,.home-tool small{font-size:11px !important;line-height:1.2 !important;color:#f2f2f5}
+.home-stack{display:grid;gap:14px}
+
+.weather-card{
+  background:linear-gradient(145deg,#17181b,#121316);
+  border:1px solid rgba(255,255,255,.06);
+  border-radius:22px;
+  padding:14px;
+  display:grid;
+  gap:10px;
+}
+.weather-top{
+  display:flex;justify-content:space-between;gap:10px;align-items:center;
+}
+.weather-place{font-size:13px;color:#f3f3f6;font-weight:700}
+.weather-sub{font-size:11px;color:#8e8e93}
+.weather-current{
+  display:flex;justify-content:space-between;align-items:end;gap:12px;
+}
+.weather-current .temp{font-size:30px;font-weight:800;line-height:1}
+.weather-current .meta{font-size:12px;color:#b8b8bd}
+.weather-forecast{
+  display:grid;grid-template-columns:repeat(4,1fr);gap:8px;
+}
+.weather-day{
+  background:rgba(255,255,255,.05);
+  border:1px solid rgba(255,255,255,.05);
+  border-radius:16px;
+  padding:8px 6px;
+  text-align:center;
+}
+.weather-day strong{display:block;font-size:11px;margin-bottom:4px}
+.weather-day span{display:block;font-size:11px;color:#d9d9de}
+.weather-refresh{border:0;background:transparent;color:var(--accent);font-weight:700}
+
+.gwj-section-title{
+  color:#d8d8dc;
+  font-size:12px;
+  font-weight:800;
+  letter-spacing:.08em;
+  text-transform:uppercase;
+  margin:0 0 10px;
+}
+.gwj-empty{
+  background:#17181b;
+  border:1px solid rgba(255,255,255,.06);
+  border-radius:20px;
+  padding:18px;
+  color:#8f8f95;
+  text-transform:uppercase;
+  font-size:12px;
+}
+.gwj-card{
+  background:linear-gradient(180deg,#17181b,#141519);
+  border:1px solid rgba(255,255,255,.06);
+  border-radius:22px;
+  padding:12px;
+}
+.gwj-card-scroll{
+  display:flex;gap:10px;overflow-x:auto;padding-bottom:2px;
+}
+.gwj-mini-card{
+  min-width:230px;
+  background:#17181b;
+  border:1px solid rgba(255,255,255,.06);
+  border-radius:22px;
+  padding:12px;
+  text-align:left;
+  color:var(--text);
+}
+.gwj-mini-card .title-row{display:flex;gap:10px;align-items:center}
+.gwj-mini-card .meta{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}
+.gwj-mini-card .meta .badge{background:#222327}
+
+.detail-hero{
+  min-height:210px !important;
+  border-radius:22px 22px 0 0 !important;
+  margin:-14px -14px 10px !important;
+}
+.detail-hero-overlay{min-height:210px !important;padding:14px !important}
+.detail-hero h2{font-size:28px !important;margin-bottom:8px !important}
+.detail-top-actions{top:10px !important;right:10px !important}
+.overlay-btn{width:36px !important;height:36px !important;font-size:20px !important}
+.photo-fab{width:50px !important;height:50px !important;border-radius:18px !important;font-size:22px !important}
+.actions-grid-4{gap:8px !important}
+.action-tile{padding:12px 6px !important;border-radius:16px !important}
+.action-tile .icon{font-size:22px !important;margin-bottom:6px !important}
+.action-tile{font-size:12px !important}
+.note-card textarea{min-height:92px !important;font-size:13px !important}
+.today-empty{padding:14px !important;border-radius:18px !important;font-size:12px !important}
+
+.gwj-toolbar{
+  display:flex;gap:8px;overflow-x:auto;padding-bottom:2px;
+}
+.gwj-toolbar .secondary,.gwj-toolbar .primary{flex:0 0 auto;padding:10px 12px !important;font-size:12px !important}
+.filter-row{gap:8px !important}
+.filter-row .field label{font-size:11px !important}
+.garden-shell,.environment-shell{display:grid;gap:14px}
+.garden-segment{margin-bottom:4px}
+
+@media (max-width:480px){
+  .home-tools{grid-template-columns:repeat(5,72px) !important}
+  .weather-forecast{grid-template-columns:repeat(4,minmax(60px,1fr))}
+}
