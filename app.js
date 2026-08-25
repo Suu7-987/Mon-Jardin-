@@ -16,7 +16,15 @@ const ENTRY_TYPES={
 
 const qs=s=>document.querySelector(s);
 const qsa=s=>[...document.querySelectorAll(s)];
-const fmtDate=v=>v?new Intl.DateTimeFormat("fr-FR",{day:"2-digit",month:"2-digit",year:"numeric"}).format(new Date(v)):"—";
+function parseMaybeLocalDate(v){
+  if(!v) return null;
+  if(typeof v==="string" && /^\d{4}-\d{2}-\d{2}$/.test(v)){
+    const [y,m,d]=v.split("-").map(Number);
+    return new Date(y,m-1,d);
+  }
+  return new Date(v);
+}
+const fmtDate=v=>v?new Intl.DateTimeFormat("fr-FR",{day:"2-digit",month:"2-digit",year:"numeric"}).format(parseMaybeLocalDate(v)):"—";
 const fmtDateTime=v=>v?new Intl.DateTimeFormat("fr-FR",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"}).format(new Date(v)):"—";
 const uid=()=>crypto.randomUUID?.() || `${Date.now()}-${Math.random().toString(16).slice(2)}`;
 const esc=s=>String(s??"").replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#039;"}[m]));
@@ -1201,7 +1209,7 @@ async function showPlantDetail(id){
       </div>
     </div>
 
-    ${renderGWJWeek(es, new Date(selected), selected)}
+    ${renderGWJWeek(es, dateFromDayString(selected), selected)}
 
     <div class="actions-grid-4">
       <button type="button" class="action-tile" id="detailAction"><span class="icon">⚡</span>Action</button>
@@ -1278,7 +1286,7 @@ async function showEnvironmentDetail(id){
       </div>
     </div>
 
-    ${renderGWJWeek(es, new Date(selected), selected)}
+    ${renderGWJWeek(es, dateFromDayString(selected), selected)}
 
     <div class="actions-grid-4">
       <button type="button" class="action-tile" id="envJournal"><span class="icon">📝</span>Journal env.</button>
@@ -1898,7 +1906,7 @@ async function showPlantDetail(id){
           <div class="detail-age">🕘 ${ageDays(p.startDate)!=null?`${ageDays(p.startDate)} jours • semaine ${Math.max(1,Math.ceil(ageDays(p.startDate)/7))}`:"Date non renseignée"}</div>
         </div>
       </div>
-      ${renderGWJWeek(es,new Date(selected),selected)}
+      ${renderGWJWeek(es,dateFromDayString(selected),selected)}
       <div class="detail-action-grid">
         <button type="button" class="action-tile" id="detailAction"><span class="icon">⚡</span>Action</button>
         <button type="button" class="action-tile" id="detailPhoto"><span class="icon">📷</span>Photo</button>
@@ -2012,7 +2020,7 @@ async function showEnvironmentDetail(id){
         <div class="detail-meta centered-badges"><span class="badge">${inferEnvironmentType(env)==="outdoor"?"Extérieur":"Intérieur"}</span><span class="badge">${assigned.length} plante${assigned.length>1?"s":""}</span>${latest?.temp?`<span class="badge">🌡️ ${esc(latest.temp)} °C</span>`:""}${latest?.humidity?`<span class="badge">💧 ${esc(latest.humidity)} %</span>`:""}${latest?.vpd?`<span class="badge">VPD ${esc(latest.vpd)}</span>`:""}</div>
         ${env.description?`<p>${esc(env.description)}</p>`:""}
       </div>
-      ${renderGWJWeek(es,new Date(selected),selected)}
+      ${renderGWJWeek(es,dateFromDayString(selected),selected)}
       <div class="detail-action-grid">
         <button type="button" class="action-tile" id="envJournal"><span class="icon">📝</span>Journal</button>
         <button type="button" class="action-tile" id="envManagePlants"><span class="icon">🌱</span>Gérer plantes</button>
@@ -2068,6 +2076,388 @@ async function ensureDefaultEnvironments(){
     }
     p.environmentId=match.id;await put("plants",p);
   }
+}
+
+
+/* ===== Grow in PF V1.6.3 ===== */
+function pad2(n){return String(n).padStart(2,"0")}
+function localISODate(v=new Date()){
+  const d=parseMaybeLocalDate(v)||new Date();
+  return `${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())}`;
+}
+function dateFromDayString(iso){
+  if(typeof iso==="string" && /^\d{4}-\d{2}-\d{2}$/.test(iso)){
+    const [y,m,d]=iso.split("-").map(Number);
+    return new Date(y,m-1,d);
+  }
+  return parseMaybeLocalDate(iso)||new Date();
+}
+function localDateTimeValue(v=new Date()){
+  const d=parseMaybeLocalDate(v)||new Date();
+  return `${localISODate(d)}T${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
+}
+function isoDay(date){
+  return localISODate(date);
+}
+function actionColor(type){
+  return ({
+    watering:"#53b6ff",
+    nutrition:"#6bd66b",
+    repotting:"#f4a742",
+    training:"#c084fc",
+    measurement:"#a7a7ad",
+    observation:"#ffd166",
+    pest:"#ff6b6b",
+    harvest:"#ffb347",
+    photo:"#36d4e9",
+    intervention:"#b0bec5"
+  })[type] || "#6bd66b";
+}
+function renderGWJWeek(entries, baseDate=new Date(), selectedISO=null){
+  const days=currentWeekDays(dateFromDayString(baseDate));
+  const monthText = new Intl.DateTimeFormat("fr-FR",{month:"long"}).format(dateFromDayString(baseDate)).toUpperCase();
+  const weekdayText = selectedISO ? new Intl.DateTimeFormat("fr-FR",{weekday:"long"}).format(dateFromDayString(selectedISO)) : "suivi";
+  return `<section class="gwj-strip">
+    <div class="gwj-strip-head">
+      <div class="month">${esc(monthText)}</div>
+      <div class="tag">${esc(weekdayText)}</div>
+    </div>
+    <div class="gwj-week">
+      ${days.map(d=>{
+        const iso = isoDay(d);
+        const dayEntries = entries.filter(e=>isoDay(e.date)===iso);
+        const types = [...new Set(dayEntries.map(e=>e.type).filter(Boolean))].slice(0,4);
+        return `<button type="button" class="gwj-day ${iso===selectedISO?"active":""} ${iso===isoDay(new Date())?"today":""}" data-week-day="${iso}">
+          <div class="dow">${esc(new Intl.DateTimeFormat("fr-FR",{weekday:"short"}).format(d).replace(".",""))}</div>
+          <div class="bubble">${d.getDate()}</div>
+          <div class="dots-row">${types.length ? types.map(t=>`<span class="multi-dot" style="background:${actionColor(t)}" title="${esc((ENTRY_TYPES[t]||["",t])[1])}"></span>`).join("") : `<span class="multi-dot none"></span>`}</div>
+        </button>`;
+      }).join("")}
+    </div>
+  </section>`;
+}
+
+function actionFieldsHTML(type,e={}){
+  e = e || {};
+  const d=detailData(e);
+  const common = {
+    ph:e.ph ?? d.ph ?? "",
+    ec:e.ec ?? d.ec ?? "",
+    water:e.water ?? d.water ?? "",
+    height:e.height ?? d.height ?? "",
+    severity:e.severity ?? d.severity ?? "",
+    product:e.product ?? d.product ?? ""
+  };
+  switch(type){
+    case "watering":
+      return `
+        <div class="form-section">Arrosage</div>
+        <div class="field"><label>Volume d’eau (L)</label><input id="aWater" type="number" step="0.05" value="${esc(d.water||common.water)}"></div>
+        <div class="field"><label>État du substrat avant</label><select id="aSubstrateState">
+          ${opt("",d.substrateState,"Non renseigné")}${opt("sec",d.substrateState,"Sec")}${opt("leger",d.substrateState,"Légèrement humide")}${opt("humide",d.substrateState,"Humide")}
+        </select></div>
+        <div class="field"><label>Source d’eau</label><select id="aWaterSource">
+          ${opt("",d.waterSource,"Non renseignée")}${opt("robinet",d.waterSource,"Robinet")}${opt("pluie",d.waterSource,"Eau de pluie")}${opt("osmosee",d.waterSource,"Osmosée")}${opt("autre",d.waterSource,"Autre")}
+        </select></div>
+        <div class="field"><label>Drainage / runoff (%)</label><input id="aRunoff" type="number" step="1" min="0" max="100" value="${esc(d.runoff||"")}"></div>
+        <div class="field"><label>pH eau</label><input id="aPh" type="number" step="0.01" value="${esc(d.ph||common.ph)}"></div>
+        <div class="field"><label>EC eau (mS/cm)</label><input id="aEc" type="number" step="0.01" value="${esc(d.ec||common.ec)}"></div>`;
+    case "nutrition":
+      const products = Array.isArray(d.products) && d.products.length
+        ? d.products
+        : [{product:d.product||common.product||"", dose:d.dose||"", unit:d.doseUnit||"ml/L"}];
+      const row = (i, item={}) => `
+        <div class="field full nutrition-row-title"><label>Produit / amendement ${i}</label></div>
+        <div class="field full"><input id="aProduct${i}" value="${esc(item.product||"")}" placeholder="Ex. Alga Grow, compost, mycorhizes…"></div>
+        <div class="field"><label>Dose ${i}</label><input id="aDose${i}" type="number" step="0.01" value="${esc(item.dose||"")}"></div>
+        <div class="field"><label>Unité ${i}</label><select id="aDoseUnit${i}">
+          ${opt("ml/L",item.unit||"ml/L","ml/L")}${opt("g/L",item.unit,"g/L")}${opt("g",item.unit,"g")}${opt("ml",item.unit,"ml")}${opt("c. à soupe",item.unit,"c. à soupe")}
+        </select></div>`;
+      return `
+        <div class="form-section">Engrais / nutrition</div>
+        <div class="field full"><label>Méthode</label><select id="aMethod">
+          ${opt("arrosage",d.method,"Arrosage")}${opt("top-dress",d.method,"Top dress")}${opt("foliaire",d.method,"Foliaire")}${opt("substrat",d.method,"Mélangé au substrat")}
+        </select></div>
+        <div class="field full helper-note"><label>Produits / amendements</label><div class="small">Tu peux enregistrer plusieurs produits dans une seule action.</div></div>
+        ${row(1, products[0] || {})}
+        ${row(2, products[1] || {})}
+        ${row(3, products[2] || {})}
+        ${row(4, products[3] || {})}
+        <div class="field"><label>Volume solution (L)</label><input id="aWater" type="number" step="0.05" value="${esc(d.water||common.water)}"></div>
+        <div class="field"><label>pH final</label><input id="aPh" type="number" step="0.01" value="${esc(d.ph||common.ph)}"></div>
+        <div class="field"><label>EC final (mS/cm)</label><input id="aEc" type="number" step="0.01" value="${esc(d.ec||common.ec)}"></div>`;
+    case "repotting":
+      return `
+        <div class="form-section">Rempotage</div>
+        <div class="field"><label>Ancien pot (L)</label><input id="aOldPot" type="number" step="0.1" value="${esc(d.oldPot||"")}"></div>
+        <div class="field"><label>Nouveau pot (L)</label><input id="aNewPot" type="number" step="0.1" value="${esc(d.newPot||"")}"></div>
+        <div class="field full"><label>Nouveau substrat</label><input id="aSubstrate" value="${esc(d.substrate||"")}" placeholder="Composition ou nom du substrat"></div>
+        <div class="field"><label>État des racines</label><select id="aRoots">
+          ${opt("",d.roots,"Non renseigné")}${opt("peu-colonise",d.roots,"Peu colonisé")}${opt("bien-colonise",d.roots,"Bien colonisé")}${opt("rootbound",d.roots,"Très colonisé / rootbound")}${opt("probleme",d.roots,"Racines à surveiller")}
+        </select></div>
+        <div class="field"><label>Mycorhizes</label><select id="aMyco">
+          ${opt("",d.myco,"Non renseigné")}${opt("oui",d.myco,"Oui")}${opt("non",d.myco,"Non")}
+        </select></div>`;
+    case "training":
+      return `
+        <div class="form-section">Taille / palissage</div>
+        <div class="field"><label>Technique</label><select id="aTechnique">
+          ${opt("LST",d.technique,"LST")}${opt("HST",d.technique,"HST / Supercropping")}${opt("Topping",d.technique,"Topping")}${opt("FIM",d.technique,"FIM")}${opt("Defoliation",d.technique,"Défoliation")}${opt("Lollipop",d.technique,"Lollipopping")}${opt("Pruning",d.technique,"Taille classique")}${opt("SCROG",d.technique,"SCROG / filet")}
+        </select></div>
+        <div class="field"><label>Branches / zones concernées</label><input id="aBranches" value="${esc(d.branches||"")}" placeholder="Ex. 2 branches principales"></div>
+        <div class="field"><label>Intensité</label><select id="aIntensity">
+          ${opt("legere",d.intensity,"Légère")}${opt("moyenne",d.intensity,"Moyenne")}${opt("forte",d.intensity,"Forte")}
+        </select></div>
+        <div class="field"><label>Réaction attendue / résultat</label><input id="aResult" value="${esc(d.result||"")}" placeholder="Ex. ouvrir la canopée"></div>`;
+    case "measurement":
+      return `
+        <div class="form-section">Mesures de la plante</div>
+        <div class="field"><label>Hauteur (cm)</label><input id="aHeight" type="number" step="0.1" value="${esc(d.height||common.height)}"></div>
+        <div class="field"><label>Largeur canopée (cm)</label><input id="aCanopy" type="number" step="0.1" value="${esc(d.canopy||"")}"></div>
+        <div class="field"><label>Diamètre tige (mm)</label><input id="aStem" type="number" step="0.1" value="${esc(d.stem||"")}"></div>
+        <div class="field"><label>Nœuds / branches</label><input id="aNodes" type="number" step="1" value="${esc(d.nodes||"")}"></div>
+        <div class="field"><label>Fleurs</label><input id="aFlowers" type="number" step="1" value="${esc(d.flowers||"")}"></div>
+        <div class="field"><label>Fruits</label><input id="aFruits" type="number" step="1" value="${esc(d.fruits||"")}"></div>`;
+    case "observation":
+      return `
+        <div class="form-section">Observation</div>
+        <div class="field"><label>Type de symptôme</label><select id="aSymptom">
+          ${opt("",d.symptom,"Aucun / général")}${opt("jaunissement",d.symptom,"Jaunissement")}${opt("chlorose",d.symptom,"Chlorose")}${opt("taches",d.symptom,"Taches")}${opt("brulure",d.symptom,"Pointes / brûlure")}${opt("courbure",d.symptom,"Feuilles courbées")}${opt("croissance",d.symptom,"Croissance ralentie")}${opt("autre",d.symptom,"Autre")}
+        </select></div>
+        <div class="field"><label>Zone</label><select id="aZone">
+          ${opt("",d.zone,"Non renseignée")}${opt("haut",d.zone,"Haut")}${opt("milieu",d.zone,"Milieu")}${opt("bas",d.zone,"Bas")}${opt("general",d.zone,"Généralisé")}
+        </select></div>
+        <div class="field"><label>Âge des feuilles</label><select id="aLeafAge">
+          ${opt("",d.leafAge,"Non renseigné")}${opt("nouvelles",d.leafAge,"Nouvelles")}${opt("anciennes",d.leafAge,"Anciennes")}${opt("toutes",d.leafAge,"Toutes")}
+        </select></div>
+        <div class="field"><label>Gravité (0–5)</label><select id="aSeverity">
+          ${[0,1,2,3,4,5].map(x=>opt(String(x),String(d.severity||common.severity||0),String(x))).join("")}
+        </select></div>
+        <div class="field full"><label>Progression</label><select id="aProgression">
+          ${opt("",d.progression,"Non renseignée")}${opt("stable",d.progression,"Stable")}${opt("ameliore",d.progression,"S’améliore")}${opt("progresse",d.progression,"Progresse")}
+        </select></div>`;
+    case "pest":
+      return `
+        <div class="form-section">Ravageur / traitement</div>
+        <div class="field"><label>Ravageur / problème</label><input id="aPest" value="${esc(d.pest||"")}" placeholder="Ex. mineuse, acarien, oïdium…"></div>
+        <div class="field"><label>Gravité (0–5)</label><select id="aSeverity">${[0,1,2,3,4,5].map(x=>opt(String(x),String(d.severity||common.severity||0),String(x))).join("")}</select></div>
+        <div class="field full"><label>Traitement / produit</label><input id="aProduct" value="${esc(d.product||common.product)}" placeholder="Produit ou action effectuée"></div>
+        <div class="field"><label>Dose</label><input id="aDoseText" value="${esc(d.doseText||"")}" placeholder="Ex. 1 ml/L"></div>
+        <div class="field"><label>Zone touchée</label><input id="aAffected" value="${esc(d.affected||"")}" placeholder="Ex. feuilles basses"></div>`;
+    case "harvest":
+      return `
+        <div class="form-section">Récolte</div>
+        <div class="field"><label>Poids frais (g)</label><input id="aWetWeight" type="number" step="0.1" value="${esc(d.wetWeight||"")}"></div>
+        <div class="field"><label>Poids sec (g)</label><input id="aDryWeight" type="number" step="0.1" value="${esc(d.dryWeight||"")}"></div>
+        <div class="field"><label>Nombre de fruits / unités</label><input id="aCount" type="number" step="1" value="${esc(d.count||"")}"></div>
+        <div class="field"><label>Qualité / état</label><select id="aQuality">
+          ${opt("",d.quality,"Non renseignée")}${opt("excellente",d.quality,"Excellente")}${opt("bonne",d.quality,"Bonne")}${opt("moyenne",d.quality,"Moyenne")}${opt("faible",d.quality,"Faible")}
+        </select></div>`;
+    case "photo":
+      return `
+        <div class="form-section">Photo</div>
+        <div class="field"><label>Vue / angle</label><select id="aAngle">
+          ${opt("",d.angle,"Non renseigné")}${opt("face",d.angle,"Face")}${opt("dessus",d.angle,"Dessus")}${opt("profil",d.angle,"Profil")}${opt("feuille",d.angle,"Feuille / détail")}${opt("racines",d.angle,"Racines")}${opt("fruit",d.angle,"Fleur / fruit")}
+        </select></div>
+        <div class="field"><label>Étiquette</label><input id="aLabel" value="${esc(d.label||"")}" placeholder="Ex. comparaison semaine 4"></div>`;
+    default:
+      return `<div class="form-section">Intervention</div><div class="field full"><label>Action réalisée</label><input id="aProduct" value="${esc(d.product||common.product)}" placeholder="Décris l’action"></div>`;
+  }
+}
+function readActionFields(type){
+  const g=id=>val(id);
+  switch(type){
+    case "watering": return {water:g("aWater"), substrateState:g("aSubstrateState"), waterSource:g("aWaterSource"), runoff:g("aRunoff"), ph:g("aPh"), ec:g("aEc")};
+    case "nutrition":
+      const products=[1,2,3,4].map(i=>({product:g(`aProduct${i}`).trim(), dose:g(`aDose${i}`), unit:g(`aDoseUnit${i}`)})).filter(p=>p.product || p.dose);
+      return {
+        method:g("aMethod"), water:g("aWater"), ph:g("aPh"), ec:g("aEc"),
+        products,
+        product: products.map(p=>p.product).filter(Boolean).join(" + ")
+      };
+    case "repotting": return {oldPot:g("aOldPot"), newPot:g("aNewPot"), substrate:g("aSubstrate"), roots:g("aRoots"), myco:g("aMyco")};
+    case "training": return {technique:g("aTechnique"), branches:g("aBranches"), intensity:g("aIntensity"), result:g("aResult")};
+    case "measurement": return {height:g("aHeight"), canopy:g("aCanopy"), stem:g("aStem"), nodes:g("aNodes"), flowers:g("aFlowers"), fruits:g("aFruits")};
+    case "observation": return {symptom:g("aSymptom"), zone:g("aZone"), leafAge:g("aLeafAge"), severity:g("aSeverity"), progression:g("aProgression")};
+    case "pest": return {pest:g("aPest"), severity:g("aSeverity"), product:g("aProduct"), doseText:g("aDoseText"), affected:g("aAffected")};
+    case "harvest": return {wetWeight:g("aWetWeight"), dryWeight:g("aDryWeight"), count:g("aCount"), quality:g("aQuality")};
+    case "photo": return {angle:g("aAngle"), label:g("aLabel")};
+    default: return {product:g("aProduct")};
+  }
+}
+function entrySummaryPills(e){
+  const d=detailData(e), pills=[];
+  switch(e.type){
+    case "watering":
+      if(d.water||e.water)pills.push(`💧 ${d.water||e.water} L`);
+      if(d.substrateState)pills.push(`Substrat ${d.substrateState}`);
+      if(d.ph||e.ph)pills.push(`pH ${d.ph||e.ph}`);
+      if(d.ec||e.ec)pills.push(`EC ${d.ec||e.ec}`);
+      break;
+    case "nutrition":
+      const products = Array.isArray(d.products) && d.products.length ? d.products : (d.product || e.product ? [{product:d.product||e.product,dose:d.dose||"",unit:d.doseUnit||""}] : []);
+      products.slice(0,3).forEach(p=>p.product && pills.push(`🧪 ${p.product}${p.dose?` ${p.dose} ${p.unit||""}`:""}`));
+      if(products.length>3)pills.push(`+${products.length-3} produit(s)`);
+      if(d.method)pills.push(d.method);
+      if(d.ph||e.ph)pills.push(`pH ${d.ph||e.ph}`);
+      if(d.ec||e.ec)pills.push(`EC ${d.ec||e.ec}`);
+      break;
+    case "repotting":
+      if(d.oldPot||d.newPot)pills.push(`🪴 ${d.oldPot||"?"}L → ${d.newPot||"?"}L`);
+      if(d.roots)pills.push(`Racines: ${d.roots}`);
+      if(d.myco)pills.push(`Myco: ${d.myco}`);
+      break;
+    case "training":
+      if(d.technique)pills.push(`✂️ ${d.technique}`);
+      if(d.intensity)pills.push(`Intensité ${d.intensity}`);
+      break;
+    case "measurement":
+      if(d.height||e.height)pills.push(`📏 ${d.height||e.height} cm`);
+      if(d.canopy)pills.push(`Canopée ${d.canopy} cm`);
+      if(d.stem)pills.push(`Tige ${d.stem} mm`);
+      break;
+    case "observation":
+      if(d.symptom)pills.push(`👀 ${d.symptom}`);
+      if(d.zone)pills.push(d.zone);
+      if(d.severity||e.severity)pills.push(`Niveau ${d.severity||e.severity}/5`);
+      break;
+    case "pest":
+      if(d.pest)pills.push(`🐛 ${d.pest}`);
+      if(d.product||e.product)pills.push(d.product||e.product);
+      if(d.severity||e.severity)pills.push(`Niveau ${d.severity||e.severity}/5`);
+      break;
+    case "harvest":
+      if(d.wetWeight)pills.push(`Frais ${d.wetWeight} g`);
+      if(d.dryWeight)pills.push(`Sec ${d.dryWeight} g`);
+      if(d.count)pills.push(`${d.count} unités`);
+      break;
+    case "photo":
+      if(d.angle)pills.push(`📷 ${d.angle}`);
+      if(d.label)pills.push(d.label);
+      break;
+    default:
+      if(d.product||e.product)pills.push(d.product||e.product);
+  }
+  if(e.temp)pills.push(`🌡️ ${e.temp} °C`);
+  if(e.humidity)pills.push(`💧 ${e.humidity} %`);
+  if(e.vpd)pills.push(`VPD ${e.vpd}`);
+  return pills;
+}
+async function entryCard(e,plants){
+  const p=plants.find(x=>x.id===e.plantId), t=ENTRY_TYPES[e.type]||["•",e.type];
+  const pills=entrySummaryPills(e);
+  return `<button class="entry-card" data-entry="${e.id}" style="width:100%;text-align:left;color:inherit">
+    <div class="entry-top"><div><div class="entry-type">${t[0]} ${t[1]}</div><div class="small">${esc(p?.name||"Plante supprimée")}</div></div><div class="entry-date">${fmtDateTime(e.date)}</div></div>
+    ${pills.length?`<div class="chips">${pills.map(x=>`<span class="chip">${esc(x)}</span>`).join("")}</div>`:""}
+    ${e.note?`<p class="entry-note">${esc(e.note)}</p>`:""}
+    ${e.photo?`<img class="entry-photo" src="${e.photo}" alt="Photo du journal">`:""}
+  </button>`;
+}
+async function showEntryForm(existing=null,forcedPlant=null,forcedType=null){
+  const plants=await all("plants");
+  if(!plants.length)return showToast("Crée d’abord une plante");
+  const e=existing;
+  const selectedType=e?.type||forcedType||"observation";
+  qs("#modalTitle").textContent=e?"Modifier l’entrée":"Nouvelle action";
+  qs("#modalBody").innerHTML=`
+    <div class="form-grid action-form">
+      <div class="field"><label>Plante *</label><select id="ePlant">${plants.map(p=>`<option value="${p.id}" ${(e?.plantId||forcedPlant)===p.id?"selected":""}>${esc(p.name)}</option>`).join("")}</select></div>
+      <div class="field"><label>Action *</label><select id="eType">${Object.entries(ENTRY_TYPES).map(([k,v])=>`<option value="${k}" ${selectedType===k?"selected":""}>${v[0]} ${v[1]}</option>`).join("")}</select></div>
+      <div class="field full"><label>Date et heure</label><input id="eDate" type="datetime-local" value="${e?.date?localDateTimeValue(e.date):localDateTimeValue()}"></div>
+      <div id="specificFields" class="dynamic-fields">${actionFieldsHTML(selectedType,e)}</div>
+      <details class="field full optional-context" ${e?.temp||e?.humidity||e?.vpd?"open":""}>
+        <summary>Contexte environnemental (optionnel)</summary>
+        <div class="form-grid context-grid">
+          <div class="field"><label>Température (°C)</label><input id="eTemp" type="number" step="0.1" value="${esc(e?.temp||"")}"></div>
+          <div class="field"><label>Humidité (%)</label><input id="eHum" type="number" step="0.1" value="${esc(e?.humidity||"")}"></div>
+          <div class="field"><label>VPD (kPa)</label><input id="eVpd" type="number" step="0.01" value="${esc(e?.vpd||"")}"></div>
+        </div>
+      </details>
+      <div class="field full"><label>Photo</label><input id="ePhoto" type="file" accept="image/*" capture="environment"></div>
+      <div class="field full"><label>Note</label><textarea id="eNote" placeholder="Observation libre…">${esc(e?.note||"")}</textarea></div>
+      <div class="field full actions form-actions"><button type="button" class="primary" id="saveEntry">Enregistrer</button>${e?`<button type="button" class="danger-btn" id="deleteEntry">Supprimer</button>`:""}</div>
+    </div>`;
+  openAppModal(false);
+  qs("#eType").onchange=()=>{ qs("#specificFields").innerHTML=actionFieldsHTML(qs("#eType").value,{}); };
+  qs("#saveEntry").onclick=async()=>{
+    try{
+      const type=qs("#eType").value;
+      const details=readActionFields(type);
+      const file=qs("#ePhoto").files[0];
+      const photo=file?await blobToDataURL(file):e?.photo||null;
+      const local=qs("#eDate").value;
+      const date=local?new Date(local).toISOString():new Date().toISOString();
+      await put("entries",{
+        ...(e||{}),
+        id:e?.id||uid(),
+        plantId:qs("#ePlant").value,
+        type,date,details,
+        water:details.water||"",
+        ph:details.ph||"",
+        ec:details.ec||"",
+        height:details.height||"",
+        severity:details.severity||"",
+        product:details.product||"",
+        temp:val("eTemp"),
+        humidity:val("eHum"),
+        vpd:val("eVpd"),
+        note:qs("#eNote").value.trim(),
+        photo,
+        createdAt:e?.createdAt||new Date().toISOString(),
+        updatedAt:new Date().toISOString()
+      });
+      qs("#modal").close();
+      showToast("Action enregistrée");
+      render();
+    }catch(err){alert(err.message)}
+  };
+  if(e)qs("#deleteEntry").onclick=async()=>{
+    if(confirm("Supprimer cette entrée ?")){
+      await del("entries",e.id);
+      qs("#modal").close();
+      showToast("Entrée supprimée");
+      render();
+    }
+  };
+}
+async function showEnvironmentEntryForm(existing=null,forcedEnv=null){
+  const envs=await all("environments");if(!envs.length)return showToast("Crée d’abord un environnement");
+  const e=existing;
+  qs("#modalTitle").textContent=e?"Modifier le journal environnement":"Journal d’environnement";
+  qs("#modalBody").innerHTML=`
+    <div class="form-grid">
+      <div class="field full"><label>Environnement</label><select id="eeEnv">${envs.map(env=>`<option value="${env.id}" ${(e?.environmentId||forcedEnv)===env.id?"selected":""}>${esc(env.name)}</option>`).join("")}</select></div>
+      <div class="field full"><label>Date et heure</label><input id="eeDate" type="datetime-local" value="${e?.date?localDateTimeValue(e.date):localDateTimeValue()}"></div>
+      <div class="form-section">Conditions</div>
+      <div class="field"><label>Température (°C)</label><input id="eeTemp" type="number" step="0.1" value="${esc(e?.temp||"")}"></div>
+      <div class="field"><label>Humidité (%)</label><input id="eeHumidity" type="number" step="0.1" value="${esc(e?.humidity||"")}"></div>
+      <div class="field"><label>VPD (kPa)</label><input id="eeVpd" type="number" step="0.01" value="${esc(e?.vpd||"")}"></div>
+      <div class="field"><label>Heures de lumière</label><input id="eeLightHours" type="number" step="0.1" value="${esc(e?.lightHours||"")}"></div>
+      <div class="field"><label>Puissance lampe (%)</label><input id="eeLightPower" type="number" step="1" min="0" max="100" value="${esc(e?.lightPower||"")}"></div>
+      <div class="field"><label>PPFD (µmol/m²/s)</label><input id="eePpfd" type="number" step="1" value="${esc(e?.ppfd||"")}"></div>
+      <div class="form-section">Dimensions</div>
+      <div class="field"><label>Largeur (cm)</label><input id="eeWidth" type="number" step="0.1" value="${esc(e?.width||"")}"></div>
+      <div class="field"><label>Profondeur (cm)</label><input id="eeDepth" type="number" step="0.1" value="${esc(e?.depth||"")}"></div>
+      <div class="field"><label>Hauteur (cm)</label><input id="eeHeight" type="number" step="0.1" value="${esc(e?.height||"")}"></div>
+      <div class="field full"><label>Note</label><textarea id="eeNote" placeholder="Ventilation, changements, météo, matériel…">${esc(e?.note||"")}</textarea></div>
+      <div class="field full actions form-actions"><button type="button" class="primary" id="saveEnvEntry">Enregistrer</button>${e?`<button type="button" class="danger-btn" id="deleteEnvEntry">Supprimer</button>`:""}</div>
+    </div>`;
+  openAppModal(false);
+  qs("#saveEnvEntry").onclick=async()=>{
+    const local=qs("#eeDate").value;
+    await put("envEntries",{
+      ...(e||{}),id:e?.id||uid(),environmentId:qs("#eeEnv").value,date:local?new Date(local).toISOString():new Date().toISOString(),
+      temp:val("eeTemp"),humidity:val("eeHumidity"),vpd:val("eeVpd"),lightHours:val("eeLightHours"),
+      lightPower:val("eeLightPower"),ppfd:val("eePpfd"),width:val("eeWidth"),depth:val("eeDepth"),height:val("eeHeight"),
+      note:qs("#eeNote").value.trim(),createdAt:e?.createdAt||new Date().toISOString(),updatedAt:new Date().toISOString()
+    });
+    qs("#modal").close();showToast("Journal environnement enregistré");render();
+  };
+  if(e)qs("#deleteEnvEntry").onclick=async()=>{
+    if(confirm("Supprimer cette entrée environnement ?")){
+      await del("envEntries",e.id);qs("#modal").close();showToast("Entrée supprimée");render();
+    }
+  };
 }
 
 (async function init(){

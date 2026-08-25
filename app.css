@@ -981,3 +981,54 @@ button {
 .field label {
   font-size: 11px !important;
 }
+
+
+/* ===== Grow in PF V1.6.3 polish ===== */
+.modal:not(.detail-modal) .modal-card{
+  padding-top:12px !important;
+}
+.modal:not(.detail-modal) .modal-head{
+  position:static !important;
+  top:auto !important;
+  background:transparent !important;
+  padding:0 0 10px !important;
+  margin-bottom:8px !important;
+  border-bottom:1px solid rgba(255,255,255,.06);
+}
+.modal:not(.detail-modal) .modal-head h3{
+  font-size:18px !important;
+  line-height:1.15 !important;
+  margin:0 !important;
+  max-width:85%;
+  overflow-wrap:anywhere;
+}
+.modal:not(.detail-modal) .modal-head .icon-btn{
+  background:transparent !important;
+  border:0 !important;
+}
+.gwj-day .dots-row{
+  min-height:12px;
+  display:flex;
+  justify-content:center;
+  align-items:center;
+  gap:3px;
+  margin-top:6px;
+}
+.multi-dot{
+  width:7px;
+  height:7px;
+  border-radius:50%;
+  display:inline-block;
+  box-shadow:0 0 0 1px rgba(255,255,255,.08);
+}
+.multi-dot.none{
+  background:transparent !important;
+  box-shadow:none;
+}
+.helper-note .small{
+  margin-top:4px;
+  color:var(--muted);
+}
+.nutrition-row-title{
+  margin-top:4px;
+}
