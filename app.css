@@ -852,3 +852,107 @@ main{padding:12px 12px 16px !important;gap:14px !important}
   .home-tools{grid-template-columns:repeat(5,72px) !important}
   .weather-forecast{grid-template-columns:repeat(4,minmax(60px,1fr))}
 }
+
+
+/* ===== Grow in PF V1.6 iPhone layout ===== */
+html,body{width:100%;max-width:100%;overflow-x:hidden!important}
+body{min-width:0!important}
+*{box-sizing:border-box;min-width:0}
+img,svg,canvas{max-width:100%}
+.app-shell{width:100%!important;max-width:480px!important;margin:0 auto!important;overflow-x:hidden!important}
+main{width:100%;max-width:100%;overflow-x:hidden!important;padding:12px 12px 20px!important}
+.topbar,.bottom-nav{width:100%!important;max-width:480px!important}
+.bottom-nav{left:50%!important}
+.modal{width:100%!important;max-width:480px!important}
+.modal-card{width:100%!important;max-width:480px!important;overflow-x:hidden!important}
+.modal.detail-modal{max-width:none!important;width:100%!important}
+.modal.detail-modal .modal-card{
+  top:0!important;bottom:0!important;height:100dvh!important;max-height:100dvh!important;
+  border:0!important;border-radius:0!important;padding:calc(10px + env(safe-area-inset-top)) 12px calc(22px + env(safe-area-inset-bottom))!important;
+}
+.modal.detail-modal .modal-head{display:none!important}
+.detail-page{width:100%;display:grid;gap:14px;overflow-x:hidden}
+.form-grid,.dynamic-fields,.context-grid{width:100%!important;max-width:100%!important}
+.dynamic-fields{grid-column:1/-1;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.optional-context{background:var(--panel);border:1px solid rgba(255,255,255,.06);border-radius:16px;padding:10px}
+.optional-context summary{cursor:pointer;font-size:12px;color:var(--muted);font-weight:700}
+.context-grid{margin-top:10px}
+.form-actions{display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px!important}
+.action-picker{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+.action-pick{
+  border:1px solid rgba(255,255,255,.07);background:var(--panel);color:var(--text);
+  border-radius:18px;padding:14px 8px;display:grid;place-items:center;gap:8px;text-align:center
+}
+.action-pick span{font-size:24px}.action-pick strong{font-size:11px;line-height:1.15}
+.add-plant-pick{grid-column:1/-1}
+.environment-toolbar-v16{display:grid;grid-template-columns:1fr;gap:10px;margin:8px 0 20px}
+.environment-toolbar-v16 button{width:100%;white-space:normal!important}
+.environment-card-v16{gap:14px!important;overflow:hidden!important}
+.environment-main{
+  width:100%;display:grid;grid-template-columns:50px minmax(0,1fr) 34px;gap:10px;align-items:center
+}
+.environment-copy{min-width:0}.environment-copy h3,.environment-copy p{overflow-wrap:anywhere}
+.custom-env-icon{width:48px!important;height:48px!important;border-radius:16px!important;display:grid!important;place-items:center!important;color:var(--accent)}
+.custom-env-icon.outdoor{color:#7ee6a0}
+.env-svg{width:34px;height:34px;display:block}
+.env-more{justify-self:end}
+.centered-badges{justify-content:center!important;text-align:center}
+.environment-actions{display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:8px!important}
+.environment-actions button{width:100%!important}
+.group-header h3{display:flex;align-items:center;gap:7px;min-width:0;overflow-wrap:anywhere}
+.group-header h3 .env-svg{width:22px;height:22px;flex:0 0 22px}
+.centered-card{align-items:center!important}
+.plant-card-copy{min-width:0}.plant-card-copy h3{overflow-wrap:anywhere}
+.compact-sub{gap:5px!important}.compact-sub span{font-size:10px!important}
+.detail-action-grid,.quick-action-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.action-tile{width:100%;display:grid;place-items:center;text-align:center;overflow:hidden}
+.action-tile .icon{display:block!important;text-align:center!important}
+.detail-hero{width:calc(100% + 24px)!important;margin:calc(-10px - env(safe-area-inset-top)) -12px 0!important;min-height:240px!important}
+.detail-hero-overlay{min-height:240px!important;align-items:flex-start}
+.detail-hero h2{max-width:82%;overflow-wrap:anywhere}
+.detail-meta{max-width:100%}
+.note-card,.timeline-card,.entry-card,.plant-card,.environment-card{width:100%!important;max-width:100%!important}
+.entry-top{align-items:flex-start}.entry-type{font-size:13px!important;overflow-wrap:anywhere}
+.entry-date{font-size:10px!important;white-space:nowrap}
+.chips{max-width:100%;overflow:hidden}.chip{white-space:normal!important;overflow-wrap:anywhere;text-align:center}
+.environment-detail-hero{
+  width:100%;background:linear-gradient(155deg,#12261a,#0b1110);border:1px solid rgba(255,255,255,.06);
+  border-radius:22px;padding:54px 16px 18px;display:grid;place-items:center;text-align:center;position:relative;gap:8px
+}
+.environment-detail-hero .detail-top-actions{left:10px;right:10px;justify-content:space-between}
+.environment-big-icon{width:82px;height:82px;border-radius:28px;background:rgba(48,209,88,.12);color:var(--accent);display:grid;place-items:center}
+.environment-big-icon .env-svg{width:54px;height:54px}
+.environment-detail-hero h2{font-size:24px!important;overflow-wrap:anywhere}
+.environment-detail-hero p{margin:0;color:var(--muted);font-size:12px}
+.env-type-preview{place-items:center!important;text-align:center}
+.env-preview-icon{width:90px;height:90px;border-radius:28px;background:var(--panel);color:var(--accent);display:grid;place-items:center}
+.env-preview-icon .env-svg{width:58px;height:58px}
+.manage-plant-head{display:grid;grid-template-columns:48px 1fr;gap:10px;align-items:center}
+.manage-plant-head .plant-photo{width:48px!important;height:48px!important}
+.add-new-in-env{width:100%;margin-bottom:4px}
+.fab{right:max(18px,calc((100vw - 480px)/2 + 18px))!important;width:58px!important;height:58px!important;border-radius:20px!important;font-size:28px!important}
+.segmented{width:100%;grid-template-columns:repeat(2,minmax(0,1fr))!important}
+.segmented button{font-size:12px!important;white-space:normal}
+.mobile-filter-row{width:100%}
+.weather-forecast{grid-template-columns:repeat(2,minmax(0,1fr))!important}
+.gwj-card-scroll{display:grid!important;grid-template-columns:1fr!important;overflow:visible!important}
+.gwj-mini-card{min-width:0!important;width:100%!important}
+.home-tools{display:grid!important;grid-template-columns:repeat(3,minmax(0,1fr))!important;overflow:visible!important;gap:10px!important}
+.home-tool{min-width:0!important}.home-tool-circle{width:54px!important;height:54px!important;border-radius:27px!important}
+.home-tool span,.home-tool small{font-size:10px!important;overflow-wrap:anywhere}
+.gwj-week{gap:3px!important}.gwj-day .bubble{width:34px!important;height:34px!important;font-size:12px!important}.gwj-day .dow{font-size:9px!important}
+.topbar-title-wrap{min-width:0}.eyebrow{font-size:9px!important}h1{font-size:17px!important}
+.bottom-nav .nav-item span{font-size:17px!important}.bottom-nav .nav-item small{font-size:8.5px!important}
+.primary,.secondary,.danger-btn{font-size:12px!important;padding:11px 10px!important;text-align:center;white-space:normal!important}
+.field label{font-size:11px!important}.field input,.field select,.field textarea{font-size:13px!important}
+.environment-title{min-width:0}.environment-title>div:last-child{min-width:0}
+.environment-title h3,.environment-title p{overflow-wrap:anywhere}
+@media(max-width:390px){
+  .dynamic-fields,.form-grid,.context-grid{grid-template-columns:1fr!important}
+  .field.full,.form-section,.dynamic-fields,.optional-context{grid-column:1!important}
+  .form-actions{grid-template-columns:1fr!important}
+  .action-picker{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .add-plant-pick{grid-column:1/-1}
+  .mobile-filter-row{grid-template-columns:1fr!important}
+  .home-tools{grid-template-columns:repeat(3,minmax(0,1fr))!important}
+}

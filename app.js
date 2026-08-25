@@ -1,15 +1,17 @@
-const DB_NAME="grow-in-pf-db", DB_VERSION=6;
+const DB_NAME="grow-in-pf-db", DB_VERSION=7;
 let db, route="dashboard", gardenMode="plants";
 
 const ENTRY_TYPES={
   watering:["💧","Arrosage"],
-  nutrition:["🧪","Nutrition"],
+  nutrition:["🧪","Engrais / nutrition"],
+  repotting:["🪴","Rempotage"],
+  training:["✂️","Taille / palissage"],
   measurement:["📏","Mesure"],
   observation:["👀","Observation"],
-  intervention:["✂️","Intervention"],
-  pest:["🐛","Ravageur / maladie"],
+  pest:["🐛","Ravageur / traitement"],
   harvest:["🧺","Récolte"],
-  photo:["📷","Photo"]
+  photo:["📷","Photo"],
+  intervention:["🛠️","Autre intervention"]
 };
 
 const qs=s=>document.querySelector(s);
@@ -1348,6 +1350,720 @@ async function showEnvironmentPlantManager(envId){
     showEnvironmentPlantManager(envId);
   });
   qsa("[data-open-plant]").forEach(b=>b.onclick=()=>{qs("#modal").close();showPlantDetail(b.dataset.openPlant);});
+}
+
+
+/* ===== Grow in PF V1.6 ===== */
+
+function openAppModal(detail=false){
+  const m=qs("#modal");
+  if(m.open) m.close();
+  m.classList.toggle("detail-modal", !!detail);
+  m.showModal();
+}
+function environmentTypeIcon(type="indoor"){
+  if(type==="outdoor"){
+    return `<svg class="env-svg" viewBox="0 0 64 64" aria-hidden="true">
+      <circle cx="47" cy="16" r="8" fill="currentColor" opacity=".9"/>
+      <path d="M6 48c9-10 18-15 27-15 9 0 17 4 25 13v8H6v-6Z" fill="currentColor" opacity=".25"/>
+      <path d="M32 52V29M32 36c-8-8-15-7-20-5 4 9 11 13 20 13M32 37c7-8 14-8 20-5-3 9-10 13-20 13" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>`;
+  }
+  return `<svg class="env-svg" viewBox="0 0 64 64" aria-hidden="true">
+    <path d="M12 54V18l20-9 20 9v36H12Z" fill="none" stroke="currentColor" stroke-width="4" stroke-linejoin="round"/>
+    <path d="M22 22h20M32 22v10M25 48c2-9 6-14 7-14s5 5 7 14M32 48V34" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round"/>
+    <path d="M27 39c-5-4-9-3-12-2 2 6 6 8 12 8M37 39c5-4 9-3 12-2-2 6-6 8-12 8" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"/>
+  </svg>`;
+}
+function environmentIconBlock(env){
+  return `<div class="environment-icon custom-env-icon ${env?.type==="outdoor"?"outdoor":"indoor"}">${environmentTypeIcon(env?.type||"indoor")}</div>`;
+}
+function inferEnvironmentType(env){
+  if(env?.type==="indoor" || env?.type==="outdoor") return env.type;
+  const n=(env?.name||"").toLowerCase();
+  return /(potager|extérieur|exterieur|jardin|balcon|terrasse|dehors)/.test(n) ? "outdoor" : "indoor";
+}
+function val(id){ return qs(`#${id}`)?.value ?? ""; }
+function selectedText(id){ const el=qs(`#${id}`); return el?.options?.[el.selectedIndex]?.text || ""; }
+function opt(value,current,label=value){
+  return `<option value="${esc(value)}" ${String(current??"")===String(value)?"selected":""}>${esc(label)}</option>`;
+}
+function detailData(e){ return e?.details || {}; }
+
+function actionFieldsHTML(type,e={}){
+  const d=detailData(e);
+  const common = {
+    ph:e.ph ?? d.ph ?? "",
+    ec:e.ec ?? d.ec ?? "",
+    water:e.water ?? d.water ?? "",
+    height:e.height ?? d.height ?? "",
+    severity:e.severity ?? d.severity ?? "",
+    product:e.product ?? d.product ?? ""
+  };
+  switch(type){
+    case "watering":
+      return `
+        <div class="form-section">Arrosage</div>
+        <div class="field"><label>Volume d’eau (L)</label><input id="aWater" type="number" step="0.05" value="${esc(d.water||common.water)}"></div>
+        <div class="field"><label>État du substrat avant</label><select id="aSubstrateState">
+          ${opt("",d.substrateState,"Non renseigné")}${opt("sec",d.substrateState,"Sec")}${opt("leger",d.substrateState,"Légèrement humide")}${opt("humide",d.substrateState,"Humide")}
+        </select></div>
+        <div class="field"><label>Source d’eau</label><select id="aWaterSource">
+          ${opt("",d.waterSource,"Non renseignée")}${opt("robinet",d.waterSource,"Robinet")}${opt("pluie",d.waterSource,"Eau de pluie")}${opt("osmosee",d.waterSource,"Osmosée")}${opt("autre",d.waterSource,"Autre")}
+        </select></div>
+        <div class="field"><label>Drainage / runoff (%)</label><input id="aRunoff" type="number" step="1" min="0" max="100" value="${esc(d.runoff||"")}"></div>
+        <div class="field"><label>pH eau</label><input id="aPh" type="number" step="0.01" value="${esc(d.ph||common.ph)}"></div>
+        <div class="field"><label>EC eau (mS/cm)</label><input id="aEc" type="number" step="0.01" value="${esc(d.ec||common.ec)}"></div>`;
+    case "nutrition":
+      return `
+        <div class="form-section">Engrais / nutrition</div>
+        <div class="field full"><label>Produit / amendement</label><input id="aProduct" value="${esc(d.product||common.product)}" placeholder="Ex. Alga Grow, compost, top dress…"></div>
+        <div class="field"><label>Dose</label><input id="aDose" type="number" step="0.01" value="${esc(d.dose||"")}"></div>
+        <div class="field"><label>Unité</label><select id="aDoseUnit">
+          ${opt("ml/L",d.doseUnit||"ml/L","ml/L")}${opt("g/L",d.doseUnit,"g/L")}${opt("g",d.doseUnit,"g")}${opt("ml",d.doseUnit,"ml")}${opt("c. à soupe",d.doseUnit,"c. à soupe")}
+        </select></div>
+        <div class="field"><label>Méthode</label><select id="aMethod">
+          ${opt("arrosage",d.method,"Arrosage")}${opt("top-dress",d.method,"Top dress")}${opt("foliaire",d.method,"Foliaire")}${opt("substrat",d.method,"Mélangé au substrat")}
+        </select></div>
+        <div class="field"><label>Volume solution (L)</label><input id="aWater" type="number" step="0.05" value="${esc(d.water||common.water)}"></div>
+        <div class="field"><label>pH final</label><input id="aPh" type="number" step="0.01" value="${esc(d.ph||common.ph)}"></div>
+        <div class="field"><label>EC final (mS/cm)</label><input id="aEc" type="number" step="0.01" value="${esc(d.ec||common.ec)}"></div>`;
+    case "repotting":
+      return `
+        <div class="form-section">Rempotage</div>
+        <div class="field"><label>Ancien pot (L)</label><input id="aOldPot" type="number" step="0.1" value="${esc(d.oldPot||"")}"></div>
+        <div class="field"><label>Nouveau pot (L)</label><input id="aNewPot" type="number" step="0.1" value="${esc(d.newPot||"")}"></div>
+        <div class="field full"><label>Nouveau substrat</label><input id="aSubstrate" value="${esc(d.substrate||"")}" placeholder="Composition ou nom du substrat"></div>
+        <div class="field"><label>État des racines</label><select id="aRoots">
+          ${opt("",d.roots,"Non renseigné")}${opt("peu-colonise",d.roots,"Peu colonisé")}${opt("bien-colonise",d.roots,"Bien colonisé")}${opt("rootbound",d.roots,"Très colonisé / rootbound")}${opt("probleme",d.roots,"Racines à surveiller")}
+        </select></div>
+        <div class="field"><label>Mycorhizes</label><select id="aMyco">
+          ${opt("",d.myco,"Non renseigné")}${opt("oui",d.myco,"Oui")}${opt("non",d.myco,"Non")}
+        </select></div>`;
+    case "training":
+      return `
+        <div class="form-section">Taille / palissage</div>
+        <div class="field"><label>Technique</label><select id="aTechnique">
+          ${opt("LST",d.technique,"LST")}${opt("HST",d.technique,"HST / Supercropping")}${opt("Topping",d.technique,"Topping")}${opt("FIM",d.technique,"FIM")}${opt("Defoliation",d.technique,"Défoliation")}${opt("Lollipop",d.technique,"Lollipopping")}${opt("Pruning",d.technique,"Taille classique")}${opt("SCROG",d.technique,"SCROG / filet")}
+        </select></div>
+        <div class="field"><label>Branches / zones concernées</label><input id="aBranches" value="${esc(d.branches||"")}" placeholder="Ex. 2 branches principales"></div>
+        <div class="field"><label>Intensité</label><select id="aIntensity">
+          ${opt("legere",d.intensity,"Légère")}${opt("moyenne",d.intensity,"Moyenne")}${opt("forte",d.intensity,"Forte")}
+        </select></div>
+        <div class="field"><label>Réaction attendue / résultat</label><input id="aResult" value="${esc(d.result||"")}" placeholder="Ex. ouvrir la canopée"></div>`;
+    case "measurement":
+      return `
+        <div class="form-section">Mesures de la plante</div>
+        <div class="field"><label>Hauteur (cm)</label><input id="aHeight" type="number" step="0.1" value="${esc(d.height||common.height)}"></div>
+        <div class="field"><label>Largeur canopée (cm)</label><input id="aCanopy" type="number" step="0.1" value="${esc(d.canopy||"")}"></div>
+        <div class="field"><label>Diamètre tige (mm)</label><input id="aStem" type="number" step="0.1" value="${esc(d.stem||"")}"></div>
+        <div class="field"><label>Nœuds / branches</label><input id="aNodes" type="number" step="1" value="${esc(d.nodes||"")}"></div>
+        <div class="field"><label>Fleurs</label><input id="aFlowers" type="number" step="1" value="${esc(d.flowers||"")}"></div>
+        <div class="field"><label>Fruits</label><input id="aFruits" type="number" step="1" value="${esc(d.fruits||"")}"></div>`;
+    case "observation":
+      return `
+        <div class="form-section">Observation</div>
+        <div class="field"><label>Type de symptôme</label><select id="aSymptom">
+          ${opt("",d.symptom,"Aucun / général")}${opt("jaunissement",d.symptom,"Jaunissement")}${opt("chlorose",d.symptom,"Chlorose")}${opt("taches",d.symptom,"Taches")}${opt("brulure",d.symptom,"Pointes / brûlure")}${opt("courbure",d.symptom,"Feuilles courbées")}${opt("croissance",d.symptom,"Croissance ralentie")}${opt("autre",d.symptom,"Autre")}
+        </select></div>
+        <div class="field"><label>Zone</label><select id="aZone">
+          ${opt("",d.zone,"Non renseignée")}${opt("haut",d.zone,"Haut")}${opt("milieu",d.zone,"Milieu")}${opt("bas",d.zone,"Bas")}${opt("general",d.zone,"Généralisé")}
+        </select></div>
+        <div class="field"><label>Âge des feuilles</label><select id="aLeafAge">
+          ${opt("",d.leafAge,"Non renseigné")}${opt("nouvelles",d.leafAge,"Nouvelles")}${opt("anciennes",d.leafAge,"Anciennes")}${opt("toutes",d.leafAge,"Toutes")}
+        </select></div>
+        <div class="field"><label>Gravité (0–5)</label><select id="aSeverity">
+          ${[0,1,2,3,4,5].map(x=>opt(String(x),String(d.severity||common.severity||0),String(x))).join("")}
+        </select></div>
+        <div class="field full"><label>Progression</label><select id="aProgression">
+          ${opt("",d.progression,"Non renseignée")}${opt("stable",d.progression,"Stable")}${opt("ameliore",d.progression,"S’améliore")}${opt("progresse",d.progression,"Progresse")}
+        </select></div>`;
+    case "pest":
+      return `
+        <div class="form-section">Ravageur / traitement</div>
+        <div class="field"><label>Ravageur / problème</label><input id="aPest" value="${esc(d.pest||"")}" placeholder="Ex. mineuse, acarien, oïdium…"></div>
+        <div class="field"><label>Gravité (0–5)</label><select id="aSeverity">${[0,1,2,3,4,5].map(x=>opt(String(x),String(d.severity||common.severity||0),String(x))).join("")}</select></div>
+        <div class="field full"><label>Traitement / produit</label><input id="aProduct" value="${esc(d.product||common.product)}" placeholder="Produit ou action effectuée"></div>
+        <div class="field"><label>Dose</label><input id="aDoseText" value="${esc(d.doseText||"")}" placeholder="Ex. 1 ml/L"></div>
+        <div class="field"><label>Zone touchée</label><input id="aAffected" value="${esc(d.affected||"")}" placeholder="Ex. feuilles basses"></div>`;
+    case "harvest":
+      return `
+        <div class="form-section">Récolte</div>
+        <div class="field"><label>Poids frais (g)</label><input id="aWetWeight" type="number" step="0.1" value="${esc(d.wetWeight||"")}"></div>
+        <div class="field"><label>Poids sec (g)</label><input id="aDryWeight" type="number" step="0.1" value="${esc(d.dryWeight||"")}"></div>
+        <div class="field"><label>Nombre de fruits / unités</label><input id="aCount" type="number" step="1" value="${esc(d.count||"")}"></div>
+        <div class="field"><label>Qualité / état</label><select id="aQuality">
+          ${opt("",d.quality,"Non renseignée")}${opt("excellente",d.quality,"Excellente")}${opt("bonne",d.quality,"Bonne")}${opt("moyenne",d.quality,"Moyenne")}${opt("faible",d.quality,"Faible")}
+        </select></div>`;
+    case "photo":
+      return `
+        <div class="form-section">Photo</div>
+        <div class="field"><label>Vue / angle</label><select id="aAngle">
+          ${opt("",d.angle,"Non renseigné")}${opt("face",d.angle,"Face")}${opt("dessus",d.angle,"Dessus")}${opt("profil",d.angle,"Profil")}${opt("feuille",d.angle,"Feuille / détail")}${opt("racines",d.angle,"Racines")}${opt("fruit",d.angle,"Fleur / fruit")}
+        </select></div>
+        <div class="field"><label>Étiquette</label><input id="aLabel" value="${esc(d.label||"")}" placeholder="Ex. comparaison semaine 4"></div>`;
+    default:
+      return `
+        <div class="form-section">Intervention</div>
+        <div class="field full"><label>Action réalisée</label><input id="aProduct" value="${esc(d.product||common.product)}" placeholder="Décris l’action"></div>`;
+  }
+}
+function readActionFields(type){
+  const g=id=>val(id);
+  switch(type){
+    case "watering": return {water:g("aWater"), substrateState:g("aSubstrateState"), waterSource:g("aWaterSource"), runoff:g("aRunoff"), ph:g("aPh"), ec:g("aEc")};
+    case "nutrition": return {product:g("aProduct"), dose:g("aDose"), doseUnit:g("aDoseUnit"), method:g("aMethod"), water:g("aWater"), ph:g("aPh"), ec:g("aEc")};
+    case "repotting": return {oldPot:g("aOldPot"), newPot:g("aNewPot"), substrate:g("aSubstrate"), roots:g("aRoots"), myco:g("aMyco")};
+    case "training": return {technique:g("aTechnique"), branches:g("aBranches"), intensity:g("aIntensity"), result:g("aResult")};
+    case "measurement": return {height:g("aHeight"), canopy:g("aCanopy"), stem:g("aStem"), nodes:g("aNodes"), flowers:g("aFlowers"), fruits:g("aFruits")};
+    case "observation": return {symptom:g("aSymptom"), zone:g("aZone"), leafAge:g("aLeafAge"), severity:g("aSeverity"), progression:g("aProgression")};
+    case "pest": return {pest:g("aPest"), severity:g("aSeverity"), product:g("aProduct"), doseText:g("aDoseText"), affected:g("aAffected")};
+    case "harvest": return {wetWeight:g("aWetWeight"), dryWeight:g("aDryWeight"), count:g("aCount"), quality:g("aQuality")};
+    case "photo": return {angle:g("aAngle"), label:g("aLabel")};
+    default: return {product:g("aProduct")};
+  }
+}
+function entrySummaryPills(e){
+  const d=detailData(e), pills=[];
+  switch(e.type){
+    case "watering":
+      if(d.water||e.water)pills.push(`💧 ${d.water||e.water} L`);
+      if(d.substrateState)pills.push(`Substrat ${d.substrateState}`);
+      if(d.ph||e.ph)pills.push(`pH ${d.ph||e.ph}`);
+      if(d.ec||e.ec)pills.push(`EC ${d.ec||e.ec}`);
+      break;
+    case "nutrition":
+      if(d.product||e.product)pills.push(`🧪 ${d.product||e.product}`);
+      if(d.dose)pills.push(`${d.dose} ${d.doseUnit||""}`);
+      if(d.method)pills.push(d.method);
+      break;
+    case "repotting":
+      if(d.oldPot||d.newPot)pills.push(`🪴 ${d.oldPot||"?"}L → ${d.newPot||"?"}L`);
+      if(d.roots)pills.push(`Racines: ${d.roots}`);
+      if(d.myco)pills.push(`Myco: ${d.myco}`);
+      break;
+    case "training":
+      if(d.technique)pills.push(`✂️ ${d.technique}`);
+      if(d.intensity)pills.push(`Intensité ${d.intensity}`);
+      break;
+    case "measurement":
+      if(d.height||e.height)pills.push(`📏 ${d.height||e.height} cm`);
+      if(d.canopy)pills.push(`Canopée ${d.canopy} cm`);
+      if(d.stem)pills.push(`Tige ${d.stem} mm`);
+      break;
+    case "observation":
+      if(d.symptom)pills.push(`👀 ${d.symptom}`);
+      if(d.zone)pills.push(d.zone);
+      if(d.severity||e.severity)pills.push(`Niveau ${d.severity||e.severity}/5`);
+      break;
+    case "pest":
+      if(d.pest)pills.push(`🐛 ${d.pest}`);
+      if(d.product||e.product)pills.push(d.product||e.product);
+      if(d.severity||e.severity)pills.push(`Niveau ${d.severity||e.severity}/5`);
+      break;
+    case "harvest":
+      if(d.wetWeight)pills.push(`Frais ${d.wetWeight} g`);
+      if(d.dryWeight)pills.push(`Sec ${d.dryWeight} g`);
+      if(d.count)pills.push(`${d.count} unités`);
+      break;
+    case "photo":
+      if(d.angle)pills.push(`📷 ${d.angle}`);
+      if(d.label)pills.push(d.label);
+      break;
+    default:
+      if(d.product||e.product)pills.push(d.product||e.product);
+  }
+  if(e.temp)pills.push(`🌡️ ${e.temp} °C`);
+  if(e.humidity)pills.push(`💧 ${e.humidity} %`);
+  if(e.vpd)pills.push(`VPD ${e.vpd}`);
+  return pills;
+}
+
+async function entryCard(e,plants){
+  const p=plants.find(x=>x.id===e.plantId), t=ENTRY_TYPES[e.type]||["•",e.type];
+  const pills=entrySummaryPills(e);
+  return `<button class="entry-card" data-entry="${e.id}" style="width:100%;text-align:left;color:inherit">
+    <div class="entry-top"><div><div class="entry-type">${t[0]} ${t[1]}</div><div class="small">${esc(p?.name||"Plante supprimée")}</div></div><div class="entry-date">${fmtDateTime(e.date)}</div></div>
+    ${pills.length?`<div class="chips">${pills.map(x=>`<span class="chip">${esc(x)}</span>`).join("")}</div>`:""}
+    ${e.note?`<p class="entry-note">${esc(e.note)}</p>`:""}
+    ${e.photo?`<img class="entry-photo" src="${e.photo}" alt="Photo du journal">`:""}
+  </button>`;
+}
+
+async function showEntryForm(existing=null,forcedPlant=null,forcedType=null){
+  const plants=await all("plants");
+  if(!plants.length)return showToast("Crée d’abord une plante");
+  const e=existing;
+  const selectedType=e?.type||forcedType||"observation";
+  const nowLocal=new Date(Date.now()-new Date().getTimezoneOffset()*60000).toISOString().slice(0,16);
+  qs("#modalTitle").textContent=e?"Modifier l’entrée":"Nouvelle action";
+  qs("#modalBody").innerHTML=`
+    <div class="form-grid action-form">
+      <div class="field"><label>Plante *</label><select id="ePlant">${plants.map(p=>`<option value="${p.id}" ${(e?.plantId||forcedPlant)===p.id?"selected":""}>${esc(p.name)}</option>`).join("")}</select></div>
+      <div class="field"><label>Action *</label><select id="eType">${Object.entries(ENTRY_TYPES).map(([k,v])=>`<option value="${k}" ${selectedType===k?"selected":""}>${v[0]} ${v[1]}</option>`).join("")}</select></div>
+      <div class="field full"><label>Date et heure</label><input id="eDate" type="datetime-local" value="${e?.date?new Date(new Date(e.date)-new Date().getTimezoneOffset()*60000).toISOString().slice(0,16):nowLocal}"></div>
+      <div id="specificFields" class="dynamic-fields">${actionFieldsHTML(selectedType,e)}</div>
+      <details class="field full optional-context" ${e?.temp||e?.humidity||e?.vpd?"open":""}>
+        <summary>Contexte environnemental (optionnel)</summary>
+        <div class="form-grid context-grid">
+          <div class="field"><label>Température (°C)</label><input id="eTemp" type="number" step="0.1" value="${esc(e?.temp||"")}"></div>
+          <div class="field"><label>Humidité (%)</label><input id="eHum" type="number" step="0.1" value="${esc(e?.humidity||"")}"></div>
+          <div class="field"><label>VPD (kPa)</label><input id="eVpd" type="number" step="0.01" value="${esc(e?.vpd||"")}"></div>
+        </div>
+      </details>
+      <div class="field full"><label>Photo</label><input id="ePhoto" type="file" accept="image/*" capture="environment"></div>
+      <div class="field full"><label>Note</label><textarea id="eNote" placeholder="Observation libre…">${esc(e?.note||"")}</textarea></div>
+      <div class="field full actions form-actions"><button type="button" class="primary" id="saveEntry">Enregistrer</button>${e?`<button type="button" class="danger-btn" id="deleteEntry">Supprimer</button>`:""}</div>
+    </div>`;
+  openAppModal(false);
+
+  qs("#eType").onchange=()=>{
+    qs("#specificFields").innerHTML=actionFieldsHTML(qs("#eType").value,{});
+  };
+
+  qs("#saveEntry").onclick=async()=>{
+    try{
+      const type=qs("#eType").value;
+      const details=readActionFields(type);
+      const file=qs("#ePhoto").files[0];
+      const photo=file?await blobToDataURL(file):e?.photo||null;
+      const local=qs("#eDate").value;
+      const date=local?new Date(local).toISOString():new Date().toISOString();
+      const water=details.water||"";
+      const ph=details.ph||"";
+      const ec=details.ec||"";
+      const height=details.height||"";
+      const severity=details.severity||"";
+      const product=details.product||"";
+      await put("entries",{
+        ...(e||{}),
+        id:e?.id||uid(),
+        plantId:qs("#ePlant").value,
+        type,date,details,
+        water,ph,ec,height,severity,product,
+        temp:val("eTemp"),
+        humidity:val("eHum"),
+        vpd:val("eVpd"),
+        note:qs("#eNote").value.trim(),
+        photo,
+        createdAt:e?.createdAt||new Date().toISOString(),
+        updatedAt:new Date().toISOString()
+      });
+      qs("#modal").close();
+      showToast("Action enregistrée");
+      render();
+    }catch(err){alert(err.message)}
+  };
+  if(e)qs("#deleteEntry").onclick=async()=>{
+    if(confirm("Supprimer cette entrée ?")){
+      await del("entries",e.id);
+      qs("#modal").close();
+      showToast("Entrée supprimée");
+      render();
+    }
+  };
+}
+async function showEntryDetail(id){
+  const e=await getOne("entries",id);
+  if(e)showEntryForm(e);
+}
+
+async function showQuickAdd(forcedPlant=null){
+  const plants=await all("plants");
+  qs("#modalTitle").textContent="Ajouter une action";
+  const actions=[
+    ["watering","💧","Arrosage"],["nutrition","🧪","Engrais"],["repotting","🪴","Rempotage"],
+    ["training","✂️","Taille"],["measurement","📏","Mesure"],["observation","👀","Observation"],
+    ["pest","🐛","Traitement"],["harvest","🧺","Récolte"],["photo","📷","Photo"]
+  ];
+  qs("#modalBody").innerHTML=`
+    <div class="action-picker">
+      ${actions.map(([type,icon,label])=>`<button type="button" class="action-pick" data-action-type="${type}"><span>${icon}</span><strong>${label}</strong></button>`).join("")}
+      <button type="button" class="action-pick add-plant-pick" id="qaPlant"><span>🌱</span><strong>Nouvelle plante</strong></button>
+    </div>`;
+  openAppModal(false);
+  qsa("[data-action-type]").forEach(b=>b.onclick=()=>{
+    qs("#modal").close();
+    if(forcedPlant) showEntryForm(null,forcedPlant,b.dataset.actionType);
+    else choosePlantForEntry(b.dataset.actionType);
+  });
+  qs("#qaPlant").onclick=()=>{qs("#modal").close();showPlantForm()};
+}
+
+async function showEnvironmentForm(id=null){
+  const env=id?await getOne("environments",id):null;
+  const inferred=inferEnvironmentType(env);
+  qs("#modalTitle").textContent=env?"Modifier l’environnement":"Nouvel environnement";
+  qs("#modalBody").innerHTML=`
+    <div class="form-grid">
+      <div class="field full env-type-preview">
+        <div class="env-preview-icon" id="envPreviewIcon">${environmentTypeIcon(inferred)}</div>
+      </div>
+      <div class="field full"><label>Nom *</label><input id="envName" value="${esc(env?.name||"")}" placeholder="Ex. Tente 1×1 m"></div>
+      <div class="field full"><label>Type</label><select id="envType">
+        ${opt("indoor",inferred,"Intérieur")}${opt("outdoor",inferred,"Extérieur")}
+      </select></div>
+      <div class="field full"><label>Description</label><textarea id="envDescription" placeholder="Ex. Tente principale, potager extérieur…">${esc(env?.description||"")}</textarea></div>
+      <div class="field full actions form-actions">
+        <button type="button" class="primary" id="saveEnvironment">Enregistrer</button>
+        ${env?`<button type="button" class="danger-btn" id="deleteEnvironment">Supprimer</button>`:""}
+      </div>
+    </div>`;
+  openAppModal(false);
+  qs("#envType").onchange=()=>qs("#envPreviewIcon").innerHTML=environmentTypeIcon(qs("#envType").value);
+  qs("#saveEnvironment").onclick=async()=>{
+    const name=qs("#envName").value.trim();
+    if(!name)return alert("Donne un nom à l’environnement.");
+    await put("environments",{
+      ...(env||{}),id:env?.id||uid(),name,type:qs("#envType").value,
+      description:qs("#envDescription").value.trim(),
+      order:env?.order??99,createdAt:env?.createdAt||new Date().toISOString(),updatedAt:new Date().toISOString()
+    });
+    qs("#modal").close();showToast("Environnement enregistré");render();
+  };
+  if(env)qs("#deleteEnvironment").onclick=async()=>{
+    const plants=await all("plants");
+    const assigned=plants.filter(p=>p.environmentId===env.id);
+    if(assigned.length && !confirm(`${assigned.length} plante(s) utilisent cet environnement. Elles deviendront « sans environnement ». Continuer ?`))return;
+    for(const p of assigned){p.environmentId="";await put("plants",p)}
+    await del("environments",env.id);
+    qs("#modal").close();showToast("Environnement supprimé");render();
+  };
+}
+
+async function showPlantForm(id=null,forcedEnv=null){
+  const [p,environments]=await Promise.all([id?getOne("plants",id):Promise.resolve(null),all("environments")]);
+  qs("#modalTitle").textContent=p?"Modifier la plante":"Nouvelle plante";
+  qs("#modalBody").innerHTML=`
+    <div class="form-grid">
+      <div class="field full"><label>Nom *</label><input id="pName" value="${esc(p?.name||"")}" placeholder="Ex. Tomate 01"></div>
+      <div class="field"><label>Espèce</label><input id="pSpecies" value="${esc(p?.species||"")}" placeholder="Tomate, basilic…"></div>
+      <div class="field"><label>Variété</label><input id="pVariety" value="${esc(p?.variety||"")}" placeholder="Roma, Genovese…"></div>
+      <div class="field"><label>Date de départ</label><input id="pStart" type="date" value="${p?.startDate?.slice(0,10)||""}"></div>
+      <div class="field"><label>Stade</label><select id="pStage">${["Plantule","Croissance","Préfloraison","Floraison","Fructification","Maturation","Repos"].map(x=>`<option ${p?.stage===x?"selected":""}>${x}</option>`).join("")}</select></div>
+      <div class="field"><label>Volume du pot (L)</label><input id="pPot" type="number" step="0.1" value="${esc(p?.pot||"")}"></div>
+      <div class="field"><label>Environnement</label><select id="pEnv"><option value="">Sans environnement</option>${environments.map(x=>`<option value="${x.id}" ${(p?.environmentId||forcedEnv)===x.id?"selected":""}>${esc(x.name)}</option>`).join("")}</select></div>
+      <div class="field full"><label>Substrat</label><input id="pSoil" value="${esc(p?.soil||"")}" placeholder="Terreau, coco, mélange…"></div>
+      <div class="field full"><label>Photo</label><input id="pPhoto" type="file" accept="image/*" capture="environment"><div class="small">Facultatif. Max ~3,5 Mo par photo.</div></div>
+      <div class="field full"><label>Notes</label><textarea id="pNotes" placeholder="Origine, particularités, objectifs…">${esc(p?.notes||"")}</textarea></div>
+      <div class="field full actions form-actions"><button type="button" class="primary" id="savePlant">${p?"Enregistrer":"Créer la plante"}</button>${p?`<button type="button" class="danger-btn" id="deletePlant">Supprimer</button>`:""}</div>
+    </div>`;
+  openAppModal(false);
+  qs("#savePlant").onclick=async()=>{
+    try{
+      const name=qs("#pName").value.trim();if(!name)return alert("Donne un nom à la plante.");
+      const file=qs("#pPhoto").files[0]; const photo=file?await blobToDataURL(file):p?.photo||null;
+      await put("plants",{
+        ...(p||{}),id:p?.id||uid(),name,species:qs("#pSpecies").value.trim(),variety:qs("#pVariety").value.trim(),
+        startDate:qs("#pStart").value,stage:qs("#pStage").value,pot:qs("#pPot").value,
+        environmentId:qs("#pEnv").value,environment:"",soil:qs("#pSoil").value.trim(),notes:qs("#pNotes").value.trim(),
+        photo,createdAt:p?.createdAt||new Date().toISOString(),updatedAt:new Date().toISOString()
+      });
+      qs("#modal").close();showToast("Plante enregistrée");render();
+    }catch(e){alert(e.message)}
+  };
+  if(p)qs("#deletePlant").onclick=async()=>{
+    if(confirm(`Supprimer ${p.name} et toutes ses entrées ?`)){
+      const es=(await all("entries")).filter(e=>e.plantId===p.id);
+      for(const e of es)await del("entries",e.id);
+      await del("plants",p.id);
+      qs("#modal").close();showToast("Plante supprimée");render();
+    }
+  };
+}
+
+function gardenPlantCard(p,entries,environments=[]){
+  const env=environments.find(x=>x.id===p.environmentId);
+  const d=ageDays(p.startDate);
+  return `<button class="plant-card centered-card" data-plant="${p.id}" style="width:100%;text-align:left;color:inherit">
+    ${plantPhotoHTML(p)}
+    <div class="plant-card-copy">
+      <h3>${esc(p.name)}</h3>
+      <div class="compact-sub">
+        ${p.stage?`<span>${esc(p.stage)}</span>`:""}${d!=null?`<span>J+${d}</span>`:""}${env?`<span>${esc(env.name)}</span>`:""}
+      </div>
+    </div>
+    <span class="status-dot ${severityStatus(entries,p.id)==="ok"?"":severityStatus(entries,p.id)}"></span>
+  </button>`;
+}
+
+async function renderGarden(app){
+  const [plants,entries,environments,envEntries]=await Promise.all([all("plants"),all("entries"),all("environments"),all("envEntries")]);
+  const phaseOptions=[...new Set(plants.map(p=>p.stage).filter(Boolean))];
+  const environmentMap=new Map(environments.map(e=>[e.id,e]));
+  const groupedPlants=list=>{
+    const groups={};
+    list.forEach(p=>{
+      const env=environmentMap.get(p.environmentId);
+      const key=env?env.name:"Sans environnement";
+      if(!groups[key])groups[key]={env,items:[]};
+      groups[key].items.push(p);
+    });
+    return Object.entries(groups).sort((a,b)=>a[0].localeCompare(b[0],"fr"));
+  };
+
+  app.innerHTML=`
+    <div class="garden-shell">
+      <section class="garden-segment">
+        <div class="segmented" id="gardenSegment">
+          <button data-mode="plants" class="${gardenMode==="plants"?"active":""}">🌱 Plantes</button>
+          <button data-mode="environments" class="${gardenMode==="environments"?"active":""}">Environnements</button>
+        </div>
+      </section>
+
+      <section id="gardenPlants" class="${gardenMode==="plants"?"":"hidden"}">
+        <div class="filter-row mobile-filter-row">
+          <div class="field"><label>Phase</label><select id="gardenPhaseFilter"><option value="">Toutes</option>${phaseOptions.map(x=>`<option value="${esc(x)}">${esc(x)}</option>`).join("")}</select></div>
+          <div class="field"><label>Environnement</label><select id="gardenEnvFilter"><option value="">Tous</option>${environments.map(e=>`<option value="${e.id}">${esc(e.name)}</option>`).join("")}<option value="__none">Sans environnement</option></select></div>
+        </div>
+        <div id="gardenPlantsList" class="card-list"></div>
+      </section>
+
+      <section id="gardenEnvironments" class="${gardenMode==="environments"?"":"hidden"}">
+        <div class="environment-toolbar-v16">
+          <button class="primary" id="gardenAddEnvironment">＋ Nouvel environnement</button>
+          <button class="secondary" id="gardenAddEnvJournal">📝 Journal d’environnement</button>
+        </div>
+        <div id="gardenEnvironmentList" class="environment-list-gap"></div>
+      </section>
+
+      <button class="fab" id="gardenFab" aria-label="Ajouter">＋</button>
+    </div>`;
+
+  const renderGroupedPlants=()=>{
+    const phase=qs("#gardenPhaseFilter")?.value||"", envFilter=qs("#gardenEnvFilter")?.value||"";
+    const filtered=plants.filter(p=>(!phase||p.stage===phase)&&(!envFilter||(envFilter==="__none"?!p.environmentId:p.environmentId===envFilter)));
+    const groups=groupedPlants(filtered);
+    qs("#gardenPlantsList").innerHTML=groups.length?groups.map(([groupName,group])=>`
+      <div class="env-group">
+        <div class="group-header"><h3>${group.env?environmentTypeIcon(inferEnvironmentType(group.env)):""} <span>${esc(groupName)}</span></h3><span class="small">${group.items.length}</span></div>
+        <div class="plant-list-compact">${group.items.map(p=>gardenPlantCard(p,entries,environments)).join("")}</div>
+      </div>`).join(""):`<div class="gwj-empty">Aucune plante avec ces filtres</div>`;
+    bindPlantCards();
+  };
+  const renderEnvironmentCards=()=>{
+    const sorted=[...environments].sort((a,b)=>(a.order??99)-(b.order??99)||a.name.localeCompare(b.name,"fr"));
+    qs("#gardenEnvironmentList").innerHTML=sorted.length?sorted.map(env=>{
+      const envPlants=plants.filter(p=>p.environmentId===env.id);
+      const last=envEntries.filter(x=>x.environmentId===env.id).sort((a,b)=>new Date(b.date)-new Date(a.date))[0];
+      return `<div class="environment-card environment-card-v16">
+        <div class="environment-main">
+          ${environmentIconBlock(env)}
+          <div class="environment-copy"><h3>${esc(env.name)}</h3><p>${envPlants.length} plante${envPlants.length>1?"s":""} • ${inferEnvironmentType(env)==="outdoor"?"Extérieur":"Intérieur"}</p></div>
+          <button class="icon-btn env-more" data-edit-env="${env.id}" aria-label="Modifier">⋯</button>
+        </div>
+        <div class="badges centered-badges">
+          ${last?.temp?`<span class="badge">🌡️ ${esc(last.temp)} °C</span>`:""}${last?.humidity?`<span class="badge">💧 ${esc(last.humidity)} %</span>`:""}${last?.vpd?`<span class="badge">VPD ${esc(last.vpd)}</span>`:""}${last?.lightHours?`<span class="badge">💡 ${esc(last.lightHours)} h</span>`:""}
+        </div>
+        <div class="environment-actions">
+          <button class="secondary" type="button" data-open-env="${env.id}">Ouvrir</button>
+          <button class="secondary" type="button" data-manage-env="${env.id}">Plantes</button>
+        </div>
+      </div>`;
+    }).join(""):`<div class="gwj-empty">Aucun environnement</div>`;
+    qsa("[data-edit-env]").forEach(b=>b.onclick=()=>showEnvironmentForm(b.dataset.editEnv));
+    qsa("[data-open-env]").forEach(b=>b.onclick=()=>showEnvironmentDetail(b.dataset.openEnv));
+    qsa("[data-manage-env]").forEach(b=>b.onclick=()=>showEnvironmentPlantManager(b.dataset.manageEnv));
+  };
+  renderGroupedPlants(); renderEnvironmentCards();
+  qsa("#gardenSegment button").forEach(btn=>btn.onclick=()=>{gardenMode=btn.dataset.mode;render()});
+  qs("#gardenPhaseFilter").onchange=renderGroupedPlants;
+  qs("#gardenEnvFilter").onchange=renderGroupedPlants;
+  qs("#gardenAddEnvironment").onclick=()=>showEnvironmentForm();
+  qs("#gardenAddEnvJournal").onclick=()=>chooseEnvironmentForJournal();
+  qs("#gardenFab").onclick=()=>gardenMode==="plants"?showPlantForm():showEnvironmentForm();
+}
+
+async function showPlantDetail(id){
+  window.__plantSelectedDate=window.__plantSelectedDate||{};
+  const [p,entries,environments]=await Promise.all([getOne("plants",id),all("entries"),all("environments")]);if(!p)return;
+  const env=environments.find(x=>x.id===p.environmentId);
+  const es=entries.filter(e=>e.plantId===id).sort((a,b)=>new Date(b.date)-new Date(a.date));
+  const selected=window.__plantSelectedDate[id]||(es[0]?isoDay(es[0].date):isoDay(new Date()));
+  const selectedEntries=es.filter(e=>isoDay(e.date)===selected);
+  qs("#modalTitle").textContent=p.name;
+  qs("#modalBody").innerHTML=`
+    <div class="detail-page">
+      <div class="detail-hero">
+        ${p.photo?`<img src="${p.photo}" alt="">`:""}
+        <div class="detail-top-actions"><button type="button" class="overlay-btn" id="detailBack">‹</button><button type="button" class="overlay-btn" id="detailEdit">⋯</button></div>
+        <button type="button" class="photo-fab" id="detailPhotoFab">📷</button>
+        <div class="detail-hero-overlay">
+          <h2>${esc(p.name)}</h2>
+          <div class="detail-meta">${p.stage?`<span class="badge">🌱 ${esc(p.stage)}</span>`:""}${p.variety?`<span class="badge">🧬 ${esc(p.variety)}</span>`:""}${env?`<span class="badge">${esc(env.name)}</span>`:""}</div>
+          <div class="detail-age">🕘 ${ageDays(p.startDate)!=null?`${ageDays(p.startDate)} jours • semaine ${Math.max(1,Math.ceil(ageDays(p.startDate)/7))}`:"Date non renseignée"}</div>
+        </div>
+      </div>
+      ${renderGWJWeek(es,new Date(selected),selected)}
+      <div class="detail-action-grid">
+        <button type="button" class="action-tile" id="detailAction"><span class="icon">⚡</span>Action</button>
+        <button type="button" class="action-tile" id="detailPhoto"><span class="icon">📷</span>Photo</button>
+        <button type="button" class="action-tile" id="detailMeasure"><span class="icon">📏</span>Mesure</button>
+        <button type="button" class="action-tile" id="detailRepot"><span class="icon">🪴</span>Rempotage</button>
+      </div>
+      <div class="section-caption">Actions rapides</div>
+      <div class="quick-action-grid">
+        <button type="button" class="action-tile" id="qaWater"><span class="icon">💧</span>Arrosage</button>
+        <button type="button" class="action-tile" id="qaFeed"><span class="icon">🧪</span>Engrais</button>
+        <button type="button" class="action-tile" id="qaTrim"><span class="icon">✂️</span>Taille</button>
+        <button type="button" class="action-tile" id="qaPest"><span class="icon">🐛</span>Traitement</button>
+      </div>
+      <div class="section-caption">Notes</div>
+      <div class="note-card"><textarea id="plantNoteArea" placeholder="Notes sur cette plante…">${esc(p.notes||"")}</textarea><div class="note-inline-actions"><button type="button" class="primary" id="savePlantNote">Enregistrer</button></div></div>
+      <div class="section-caption">Journal du ${fmtDate(selected)}</div>
+      ${selectedEntries.length?`<div class="card-list">${(await Promise.all(selectedEntries.slice(0,8).map(e=>entryCard(e,[p])))).join("")}</div>`:`<div class="today-empty">Aucune entrée pour cette date</div>`}
+      <div class="section-caption">Historique récent</div>
+      <div class="card-list">${es.length?(await Promise.all(es.slice(0,5).map(e=>entryCard(e,[p])))).join(""):`<div class="gwj-empty">Aucune entrée</div>`}</div>
+    </div>`;
+  openAppModal(true);
+  qs("#detailBack").onclick=()=>qs("#modal").close();
+  qs("#detailEdit").onclick=()=>{qs("#modal").close();showPlantForm(p.id)};
+  qs("#detailAction").onclick=()=>{qs("#modal").close();showQuickAdd(p.id)};
+  qs("#detailPhoto").onclick=qs("#detailPhotoFab").onclick=()=>{qs("#modal").close();showEntryForm(null,p.id,"photo")};
+  qs("#detailMeasure").onclick=()=>{qs("#modal").close();showEntryForm(null,p.id,"measurement")};
+  qs("#detailRepot").onclick=()=>{qs("#modal").close();showEntryForm(null,p.id,"repotting")};
+  qs("#qaWater").onclick=()=>{qs("#modal").close();showEntryForm(null,p.id,"watering")};
+  qs("#qaFeed").onclick=()=>{qs("#modal").close();showEntryForm(null,p.id,"nutrition")};
+  qs("#qaTrim").onclick=()=>{qs("#modal").close();showEntryForm(null,p.id,"training")};
+  qs("#qaPest").onclick=()=>{qs("#modal").close();showEntryForm(null,p.id,"pest")};
+  qs("#savePlantNote").onclick=async()=>{await savePlantNotes(p.id,qs("#plantNoteArea").value.trim());showToast("Notes enregistrées")};
+  qsa("[data-week-day]").forEach(b=>b.onclick=()=>{window.__plantSelectedDate[id]=b.dataset.weekDay;showPlantDetail(id)});
+  qsa("[data-entry]").forEach(b=>b.onclick=()=>{qs("#modal").close();showEntryDetail(b.dataset.entry)});
+}
+
+async function showEnvironmentEntryForm(existing=null,forcedEnv=null){
+  const envs=await all("environments");if(!envs.length)return showToast("Crée d’abord un environnement");
+  const e=existing;
+  const nowLocal=new Date(Date.now()-new Date().getTimezoneOffset()*60000).toISOString().slice(0,16);
+  qs("#modalTitle").textContent=e?"Modifier le journal environnement":"Journal d’environnement";
+  qs("#modalBody").innerHTML=`
+    <div class="form-grid">
+      <div class="field full"><label>Environnement</label><select id="eeEnv">${envs.map(env=>`<option value="${env.id}" ${(e?.environmentId||forcedEnv)===env.id?"selected":""}>${esc(env.name)}</option>`).join("")}</select></div>
+      <div class="field full"><label>Date et heure</label><input id="eeDate" type="datetime-local" value="${e?.date?new Date(new Date(e.date)-new Date().getTimezoneOffset()*60000).toISOString().slice(0,16):nowLocal}"></div>
+      <div class="form-section">Conditions</div>
+      <div class="field"><label>Température (°C)</label><input id="eeTemp" type="number" step="0.1" value="${esc(e?.temp||"")}"></div>
+      <div class="field"><label>Humidité (%)</label><input id="eeHumidity" type="number" step="0.1" value="${esc(e?.humidity||"")}"></div>
+      <div class="field"><label>VPD (kPa)</label><input id="eeVpd" type="number" step="0.01" value="${esc(e?.vpd||"")}"></div>
+      <div class="field"><label>Heures de lumière</label><input id="eeLightHours" type="number" step="0.1" value="${esc(e?.lightHours||"")}"></div>
+      <div class="field"><label>Puissance lampe (%)</label><input id="eeLightPower" type="number" step="1" min="0" max="100" value="${esc(e?.lightPower||"")}"></div>
+      <div class="field"><label>PPFD (µmol/m²/s)</label><input id="eePpfd" type="number" step="1" value="${esc(e?.ppfd||"")}"></div>
+      <div class="form-section">Dimensions</div>
+      <div class="field"><label>Largeur (cm)</label><input id="eeWidth" type="number" step="0.1" value="${esc(e?.width||"")}"></div>
+      <div class="field"><label>Profondeur (cm)</label><input id="eeDepth" type="number" step="0.1" value="${esc(e?.depth||"")}"></div>
+      <div class="field"><label>Hauteur (cm)</label><input id="eeHeight" type="number" step="0.1" value="${esc(e?.height||"")}"></div>
+      <div class="field full"><label>Note</label><textarea id="eeNote" placeholder="Ventilation, changements, météo, matériel…">${esc(e?.note||"")}</textarea></div>
+      <div class="field full actions form-actions"><button type="button" class="primary" id="saveEnvEntry">Enregistrer</button>${e?`<button type="button" class="danger-btn" id="deleteEnvEntry">Supprimer</button>`:""}</div>
+    </div>`;
+  openAppModal(false);
+  qs("#saveEnvEntry").onclick=async()=>{
+    const local=qs("#eeDate").value;
+    await put("envEntries",{
+      ...(e||{}),id:e?.id||uid(),environmentId:qs("#eeEnv").value,date:local?new Date(local).toISOString():new Date().toISOString(),
+      temp:val("eeTemp"),humidity:val("eeHumidity"),vpd:val("eeVpd"),lightHours:val("eeLightHours"),
+      lightPower:val("eeLightPower"),ppfd:val("eePpfd"),width:val("eeWidth"),depth:val("eeDepth"),height:val("eeHeight"),
+      note:qs("#eeNote").value.trim(),createdAt:e?.createdAt||new Date().toISOString(),updatedAt:new Date().toISOString()
+    });
+    qs("#modal").close();showToast("Journal environnement enregistré");render();
+  };
+  if(e)qs("#deleteEnvEntry").onclick=async()=>{
+    if(confirm("Supprimer cette entrée environnement ?")){
+      await del("envEntries",e.id);qs("#modal").close();showToast("Entrée supprimée");render();
+    }
+  };
+}
+async function showEnvironmentEntryDetail(id){const e=await getOne("envEntries",id);if(e)showEnvironmentEntryForm(e,e.environmentId)}
+
+async function showEnvironmentPlantManager(envId){
+  const [env,plants,environments]=await Promise.all([getOne("environments",envId),all("plants"),all("environments")]);if(!env)return;
+  qs("#modalTitle").textContent=`Plantes • ${env.name}`;
+  qs("#modalBody").innerHTML=`<div class="manage-plant-list">
+    <button type="button" class="primary add-new-in-env" id="createPlantInEnv">＋ Créer une plante dans cet environnement</button>
+    ${plants.length?plants.map(p=>{
+      const currentEnv=environments.find(e=>e.id===p.environmentId),inThis=p.environmentId===envId;
+      return `<div class="manage-plant-card"><div class="manage-plant-head">${plantPhotoHTML(p)}<div><strong>${esc(p.name)}</strong><div class="small">${currentEnv?`Actuellement : ${esc(currentEnv.name)}`:"Sans environnement"}</div></div></div>
+        <div class="manage-plant-actions">${inThis?`<button type="button" class="secondary" data-remove-plant="${p.id}">Retirer</button>`:`<button type="button" class="primary" data-move-plant="${p.id}">Déplacer ici</button>`}<button type="button" class="secondary" data-open-plant="${p.id}">Ouvrir</button></div></div>`;
+    }).join(""):`<div class="gwj-empty">Aucune plante</div>`}
+  </div>`;
+  openAppModal(false);
+  qs("#createPlantInEnv").onclick=()=>{qs("#modal").close();showPlantForm(null,envId)};
+  qsa("[data-move-plant]").forEach(b=>b.onclick=async()=>{const p=await getOne("plants",b.dataset.movePlant);p.environmentId=envId;p.updatedAt=new Date().toISOString();await put("plants",p);showToast("Plante déplacée");showEnvironmentPlantManager(envId)});
+  qsa("[data-remove-plant]").forEach(b=>b.onclick=async()=>{const p=await getOne("plants",b.dataset.removePlant);p.environmentId="";p.updatedAt=new Date().toISOString();await put("plants",p);showToast("Plante retirée");showEnvironmentPlantManager(envId)});
+  qsa("[data-open-plant]").forEach(b=>b.onclick=()=>{qs("#modal").close();showPlantDetail(b.dataset.openPlant)});
+}
+
+async function showEnvironmentDetail(id){
+  window.__envSelectedDate=window.__envSelectedDate||{};
+  const [env,plants,envEntries]=await Promise.all([getOne("environments",id),all("plants"),all("envEntries")]);if(!env)return;
+  const assigned=plants.filter(p=>p.environmentId===id);
+  const es=envEntries.filter(e=>e.environmentId===id).sort((a,b)=>new Date(b.date)-new Date(a.date));
+  const selected=window.__envSelectedDate[id]||(es[0]?isoDay(es[0].date):isoDay(new Date()));
+  const selectedEntries=es.filter(e=>isoDay(e.date)===selected),latest=es[0];
+  qs("#modalTitle").textContent=env.name;
+  qs("#modalBody").innerHTML=`
+    <div class="detail-page">
+      <div class="environment-detail-hero">
+        <div class="detail-top-actions"><button type="button" class="overlay-btn" id="envBack">‹</button><button type="button" class="overlay-btn" id="envEdit">⋯</button></div>
+        <div class="environment-big-icon">${environmentTypeIcon(inferEnvironmentType(env))}</div>
+        <h2>${esc(env.name)}</h2>
+        <div class="detail-meta centered-badges"><span class="badge">${inferEnvironmentType(env)==="outdoor"?"Extérieur":"Intérieur"}</span><span class="badge">${assigned.length} plante${assigned.length>1?"s":""}</span>${latest?.temp?`<span class="badge">🌡️ ${esc(latest.temp)} °C</span>`:""}${latest?.humidity?`<span class="badge">💧 ${esc(latest.humidity)} %</span>`:""}${latest?.vpd?`<span class="badge">VPD ${esc(latest.vpd)}</span>`:""}</div>
+        ${env.description?`<p>${esc(env.description)}</p>`:""}
+      </div>
+      ${renderGWJWeek(es,new Date(selected),selected)}
+      <div class="detail-action-grid">
+        <button type="button" class="action-tile" id="envJournal"><span class="icon">📝</span>Journal</button>
+        <button type="button" class="action-tile" id="envManagePlants"><span class="icon">🌱</span>Gérer plantes</button>
+        <button type="button" class="action-tile" id="envAddPlant"><span class="icon">＋</span>Nouvelle plante</button>
+        <button type="button" class="action-tile" id="envEdit2"><span class="icon">✏️</span>Modifier</button>
+      </div>
+      <div class="section-caption">Plantes</div>
+      <div class="card-list">${assigned.length?assigned.map(p=>gardenPlantCard(p,[],[env])).join(""):`<div class="gwj-empty">Aucune plante assignée</div>`}</div>
+      <div class="section-caption">Journal du ${fmtDate(selected)}</div>
+      <div class="card-list">${selectedEntries.length?selectedEntries.map(environmentEntryCard).join(""):`<div class="today-empty">Aucune entrée pour cette date</div>`}</div>
+      <div class="section-caption">Historique récent</div>
+      <div class="card-list">${es.length?es.slice(0,5).map(environmentEntryCard).join(""):`<div class="gwj-empty">Aucun journal environnement</div>`}</div>
+    </div>`;
+  openAppModal(true);
+  qs("#envBack").onclick=()=>qs("#modal").close();
+  qs("#envEdit").onclick=qs("#envEdit2").onclick=()=>{qs("#modal").close();showEnvironmentForm(id)};
+  qs("#envJournal").onclick=()=>{qs("#modal").close();showEnvironmentEntryForm(null,id)};
+  qs("#envManagePlants").onclick=()=>{qs("#modal").close();showEnvironmentPlantManager(id)};
+  qs("#envAddPlant").onclick=()=>{qs("#modal").close();showPlantForm(null,id)};
+  qsa("[data-week-day]").forEach(b=>b.onclick=()=>{window.__envSelectedDate[id]=b.dataset.weekDay;showEnvironmentDetail(id)});
+  qsa("[data-plant]").forEach(b=>b.onclick=()=>{qs("#modal").close();showPlantDetail(b.dataset.plant)});
+  qsa("[data-env-entry]").forEach(b=>b.onclick=()=>{qs("#modal").close();showEnvironmentEntryDetail(b.dataset.envEntry)});
+}
+
+async function ensureDefaultEnvironments(){
+  let envs=await all("environments");
+  const defaults=[
+    {id:"env-propagation",name:"Tente de propagation",type:"indoor",description:"Zone dédiée aux semis, boutures et jeunes plantes.",order:1},
+    {id:"env-tente-1x1",name:"Tente 1×1 m",type:"indoor",description:"Tente principale de culture indoor.",order:2},
+    {id:"env-potager",name:"Potager",type:"outdoor",description:"Plantes cultivées au potager / en extérieur.",order:3}
+  ];
+  for(const d of defaults){
+    const found=envs.find(e=>e.id===d.id||e.name.toLowerCase()===d.name.toLowerCase());
+    if(!found)await put("environments",{...d,createdAt:new Date().toISOString(),updatedAt:new Date().toISOString()});
+  }
+  envs=await all("environments");
+  for(const env of envs){
+    if(!env.type){
+      env.type=inferEnvironmentType(env);
+      env.updatedAt=new Date().toISOString();
+      await put("environments",env);
+    }
+  }
+  const plants=await all("plants");
+  for(const p of plants){
+    if(p.environmentId)continue;
+    const legacy=(p.environment||"").trim().toLowerCase();
+    if(!legacy)continue;
+    let match=envs.find(e=>e.name.toLowerCase()===legacy);
+    if(!match){
+      match={id:"env-"+uid(),name:p.environment,type:inferEnvironmentType({name:p.environment}),description:"Importé depuis l’ancienne version.",order:90,createdAt:new Date().toISOString(),updatedAt:new Date().toISOString()};
+      await put("environments",match);envs.push(match);
+    }
+    p.environmentId=match.id;await put("plants",p);
+  }
 }
 
 (async function init(){
