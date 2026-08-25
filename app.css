@@ -956,3 +956,28 @@ main{width:100%;max-width:100%;overflow-x:hidden!important;padding:12px 12px 20p
   .mobile-filter-row{grid-template-columns:1fr!important}
   .home-tools{grid-template-columns:repeat(3,minmax(0,1fr))!important}
 }
+
+
+/* ===== Grow in PF V1.6.1 - iPhone keyboard zoom fix ===== */
+/* iOS Safari zoome automatiquement sur les champs avec une police < 16 px. */
+input,
+select,
+textarea,
+.search input,
+.field input,
+.field select,
+.field textarea {
+  font-size: 16px !important;
+}
+
+input,
+select,
+textarea,
+button {
+  -webkit-text-size-adjust: 100%;
+}
+
+/* L'interface reste compacte grâce aux labels plus petits. */
+.field label {
+  font-size: 11px !important;
+}

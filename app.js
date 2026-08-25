@@ -836,9 +836,9 @@ async function showPlantDetail(id){
   qs("#detailJournal").onclick=()=>setRoute("journal");
   qs("#detailPhoto").onclick=()=>{qs("#modal").close();showEntryForm(null,p.id,"photo")};
   qs("#detailEdit").onclick=()=>{qs("#modal").close();showPlantForm(p.id)};
-  qs("#qaWater").onclick=()=>{qs("#modal").close();showEntryForm(null,p.id,"watering")};
-  qs("#qaFeed").onclick=()=>{qs("#modal").close();showEntryForm(null,p.id,"nutrition")};
-  qs("#qaPest").onclick=()=>{qs("#modal").close();showEntryForm(null,p.id,"pest")};
+  qs("#qaWater").onclick=()=>{qs("#modal").close();setTimeout(()=>showEntryForm(null,p.id,"watering"),0)};
+  qs("#qaFeed").onclick=()=>{qs("#modal").close();setTimeout(()=>showEntryForm(null,p.id,"nutrition"),0)};
+  qs("#qaPest").onclick=()=>{qs("#modal").close();setTimeout(()=>showEntryForm(null,p.id,"pest"),0)};
   qs("#qaTrim").onclick=()=>{qs("#modal").close();showEntryForm(null,p.id,"intervention")};
 
   qsa("[data-entry]").forEach(b=>b.onclick=()=>{qs("#modal").close();showEntryDetail(b.dataset.entry)});
@@ -1239,9 +1239,9 @@ async function showPlantDetail(id){
   qs("#detailJournal").onclick=()=>setRoute("journal");
   qs("#detailPhoto").onclick=()=>{qs("#modal").close();showEntryForm(null,p.id,"photo")};
   qs("#detailPhotoFab").onclick=()=>{qs("#modal").close();showEntryForm(null,p.id,"photo")};
-  qs("#qaWater").onclick=()=>{qs("#modal").close();showEntryForm(null,p.id,"watering")};
-  qs("#qaFeed").onclick=()=>{qs("#modal").close();showEntryForm(null,p.id,"nutrition")};
-  qs("#qaPest").onclick=()=>{qs("#modal").close();showEntryForm(null,p.id,"pest")};
+  qs("#qaWater").onclick=()=>{qs("#modal").close();setTimeout(()=>showEntryForm(null,p.id,"watering"),0)};
+  qs("#qaFeed").onclick=()=>{qs("#modal").close();setTimeout(()=>showEntryForm(null,p.id,"nutrition"),0)};
+  qs("#qaPest").onclick=()=>{qs("#modal").close();setTimeout(()=>showEntryForm(null,p.id,"pest"),0)};
   qs("#qaTrim").onclick=()=>{qs("#modal").close();showEntryForm(null,p.id,"intervention")};
   qs("#savePlantNote").onclick=async()=>{ await savePlantNotes(p.id, qs("#plantNoteArea").value.trim()); showToast("Notes enregistrées"); };
   qsa("[data-week-day]").forEach(b=>b.onclick=()=>{window.__plantSelectedDate[id]=b.dataset.weekDay; showPlantDetail(id);});
@@ -1391,6 +1391,7 @@ function opt(value,current,label=value){
 function detailData(e){ return e?.details || {}; }
 
 function actionFieldsHTML(type,e={}){
+  e = e || {};
   const d=detailData(e);
   const common = {
     ph:e.ph ?? d.ph ?? "",
@@ -1683,9 +1684,12 @@ async function showQuickAdd(forcedPlant=null){
     </div>`;
   openAppModal(false);
   qsa("[data-action-type]").forEach(b=>b.onclick=()=>{
+    const actionType=b.dataset.actionType;
     qs("#modal").close();
-    if(forcedPlant) showEntryForm(null,forcedPlant,b.dataset.actionType);
-    else choosePlantForEntry(b.dataset.actionType);
+    setTimeout(()=>{
+      if(forcedPlant) showEntryForm(null,forcedPlant,actionType);
+      else choosePlantForEntry(actionType);
+    },0);
   });
   qs("#qaPlant").onclick=()=>{qs("#modal").close();showPlantForm()};
 }
@@ -1919,13 +1923,13 @@ async function showPlantDetail(id){
   qs("#detailBack").onclick=()=>qs("#modal").close();
   qs("#detailEdit").onclick=()=>{qs("#modal").close();showPlantForm(p.id)};
   qs("#detailAction").onclick=()=>{qs("#modal").close();showQuickAdd(p.id)};
-  qs("#detailPhoto").onclick=qs("#detailPhotoFab").onclick=()=>{qs("#modal").close();showEntryForm(null,p.id,"photo")};
-  qs("#detailMeasure").onclick=()=>{qs("#modal").close();showEntryForm(null,p.id,"measurement")};
-  qs("#detailRepot").onclick=()=>{qs("#modal").close();showEntryForm(null,p.id,"repotting")};
-  qs("#qaWater").onclick=()=>{qs("#modal").close();showEntryForm(null,p.id,"watering")};
-  qs("#qaFeed").onclick=()=>{qs("#modal").close();showEntryForm(null,p.id,"nutrition")};
-  qs("#qaTrim").onclick=()=>{qs("#modal").close();showEntryForm(null,p.id,"training")};
-  qs("#qaPest").onclick=()=>{qs("#modal").close();showEntryForm(null,p.id,"pest")};
+  qs("#detailPhoto").onclick=qs("#detailPhotoFab").onclick=()=>{qs("#modal").close();setTimeout(()=>showEntryForm(null,p.id,"photo"),0)};
+  qs("#detailMeasure").onclick=()=>{qs("#modal").close();setTimeout(()=>showEntryForm(null,p.id,"measurement"),0)};
+  qs("#detailRepot").onclick=()=>{qs("#modal").close();setTimeout(()=>showEntryForm(null,p.id,"repotting"),0)};
+  qs("#qaWater").onclick=()=>{qs("#modal").close();setTimeout(()=>showEntryForm(null,p.id,"watering"),0)};
+  qs("#qaFeed").onclick=()=>{qs("#modal").close();setTimeout(()=>showEntryForm(null,p.id,"nutrition"),0)};
+  qs("#qaTrim").onclick=()=>{qs("#modal").close();setTimeout(()=>showEntryForm(null,p.id,"training"),0)};
+  qs("#qaPest").onclick=()=>{qs("#modal").close();setTimeout(()=>showEntryForm(null,p.id,"pest"),0)};
   qs("#savePlantNote").onclick=async()=>{await savePlantNotes(p.id,qs("#plantNoteArea").value.trim());showToast("Notes enregistrées")};
   qsa("[data-week-day]").forEach(b=>b.onclick=()=>{window.__plantSelectedDate[id]=b.dataset.weekDay;showPlantDetail(id)});
   qsa("[data-entry]").forEach(b=>b.onclick=()=>{qs("#modal").close();showEntryDetail(b.dataset.entry)});
